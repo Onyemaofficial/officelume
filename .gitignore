@@ -1,0 +1,39 @@
+# dependencies
+node_modules/
+functions/node_modules/
+
+# build output
+dist/
+functions/lib/
+*.tsbuildinfo
+
+# environment & secrets - NEVER commit these
+.env
+.env.*
+!.env.example
+functions/.env
+functions/.env.*
+!functions/.env.example
+functions/.secret.local
+.secret.local
+serviceAccount*.json
+*-firebase-adminsdk-*.json
+*.pem
+
+# firebase
+.firebase/
+firebase-debug.log*
+firebase-debug.*.log
+ui-debug.log
+firestore-debug.log
+pglite-debug.log
+emulator-data/
+
+# tooling
+coverage/
+.DS_Store
+Thumbs.db
+*.log
+
+# local tooling
+.claude/

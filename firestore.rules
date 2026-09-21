@@ -1,0 +1,90 @@
+rules_version = '2';
+
+// OfficeLume Firestore security rules
+// ---------------------------------------------------------------------------
+// Principle: DENY by default, allow only what is explicitly needed.
+//
+//  * Customers are anonymous and never touch Firestore directly. Every customer action
+//    (chat, service request, escalation) goes through a callable Cloud Function that validates
+//    input, rate limits, writes with the Admin SDK, and records an audit event.
+//    => there is NO client write access to any collection, for anyone.
+//
+//  * Administrators may READ operational data (requests, escalations, knowledge, chat logs,
+//    audit logs) so the dashboard can list it. All admin MUTATIONS also go through Cloud
+//    Functions (status transitions, notes, knowledge edits) so they are validated and audited.
+//
+//  * "Administrator" means BOTH a `role: "admin"` custom claim (settable only by the Admin SDK)
+//    AND an active users/{uid} profile with role admin. The profile check lets an admin be
+//    revoked immediately by setting `active: false`, without waiting for their ID token to expire.
+//
+//  * counters/ and rateLimits/ are server-internal and completely closed to clients.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function adminProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.role == 'admin'
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && adminProfile().role == 'admin'
+        && adminProfile().active == true;
+    }
+
+    // A signed-in user may read only their own profile (the app never needs to write it).
+    match /users/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Approved HVAC knowledge. Customers get answers via the askOfficeLume function, not by reading this.
+    match /knowledgeBase/{articleId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /serviceRequests/{requestId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /escalations/{escalationId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /chatSessions/{sessionId} {
+      allow read: if isAdmin();
+      allow write: if false;
+
+      match /messages/{messageId} {
+        allow read: if isAdmin();
+        allow write: if false;
+      }
+    }
+
+    match /auditLogs/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false; // append-only from Cloud Functions; immutable to clients
+    }
+
+    // Server-internal bookkeeping (reference-number counters, rate-limit buckets).
+    match /counters/{doc} {
+      allow read, write: if false;
+    }
+    match /rateLimits/{doc} {
+      allow read, write: if false;
+    }
+
+    // Anything not matched above is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
