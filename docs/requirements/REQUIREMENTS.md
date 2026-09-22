@@ -20,7 +20,7 @@ Every functional and non-functional requirement, where it is implemented, and ho
 | FR-12 | Admins maintain approved HVAC knowledge | `KnowledgePage` + `saveKnowledgeArticleAdmin` (create/update/deactivate) | integration "manages knowledge", smoke |
 | FR-13 | Record important events | `functions/src/audit/audit.ts`; `AuditPage` | integration and smoke assert each event type |
 | FR-14 | Disclose that the receptionist uses AI | hero disclaimer, chat header/disclaimer, "OfficeLume (AI)" labels, privacy notice, About page | `ChatPanel.test.tsx` |
-| FR-15 | Offer human escalation when the AI cannot answer | `escalation-prompt` buttons, "Talk to a person", `/#help`, `EscalationForm` | `ChatPanel.test.tsx`, `FrontDesk` |
+| FR-15 | Offer human escalation when the AI cannot answer | `escalation-prompt` buttons, "Talk to a person" in the chat header, "Get Human Help" in the site nav and home page, `EscalationForm` (inside the chat widget) | `ChatPanel.test.tsx`, `ChatWidget.test.tsx` |
 
 ### Audit events implemented
 
@@ -48,7 +48,7 @@ Every functional and non-functional requirement, where it is implemented, and ho
 | No unsafe repair instructions | Hazardous-DIY / life-safety guards (`safety.ts`), tests `SAF-*`, `EMG-04..06` |
 | No discrimination / no protected-characteristic inference | No demographic fields; system prompt rule; no prioritisation logic exists in code |
 | No invented policies/prices/availability | Grounded prompt + `grounding.ts` + escalation |
-| Human escalation always available | "Talk to a person" button always visible; `/#help` link in nav |
+| Human escalation always available | "Talk to a person" in the chat header and "Get Human Help" in the header nav on every public page |
 
 ## Definition-of-done checklist
 

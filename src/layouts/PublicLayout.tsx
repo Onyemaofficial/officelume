@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router';
-import { ButtonLink } from '../components/Button';
+import { Button } from '../components/Button';
 import { ConfigNotice } from '../components/ConfigNotice';
 import { Logo } from '../components/Logo';
+import { ChatWidgetProvider } from '../features/chat/ChatWidgetProvider';
+import { useChatWidget } from '../features/chat/chatWidgetContext';
 
 const NAV = [
   { to: '/', label: 'Home', end: true },
@@ -11,8 +13,9 @@ const NAV = [
   { to: '/about', label: 'About', end: false },
 ];
 
-export function PublicLayout() {
+function SiteShell() {
   const [open, setOpen] = useState(false);
+  const { openHelp } = useChatWidget();
   const close = () => setOpen(false);
 
   return (
@@ -41,9 +44,16 @@ export function PublicLayout() {
                 {item.label}
               </NavLink>
             ))}
-            <ButtonLink to="/#help" size="sm" variant="secondary" onClick={close}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                close();
+                openHelp();
+              }}
+            >
               Get Human Help
-            </ButtonLink>
+            </Button>
           </nav>
         </div>
       </header>
@@ -72,5 +82,17 @@ export function PublicLayout() {
         </div>
       </footer>
     </div>
+  );
+}
+
+/**
+ * Public site chrome. The chat provider lives here (not in individual pages), so the floating
+ * chat - and its conversation - persists as visitors move between public pages.
+ */
+export function PublicLayout() {
+  return (
+    <ChatWidgetProvider>
+      <SiteShell />
+    </ChatWidgetProvider>
   );
 }

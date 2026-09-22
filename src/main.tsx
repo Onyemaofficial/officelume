@@ -5,6 +5,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
 import './styles/public.css';
+import './styles/chat-widget.css';
 import './styles/admin.css';
 
 const root = document.getElementById('root');

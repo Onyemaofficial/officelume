@@ -1,7 +1,9 @@
-import { ButtonLink } from '../components/Button';
+import { Button, ButtonLink } from '../components/Button';
+import { useChatWidget } from '../features/chat/chatWidgetContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 export function AboutPage() {
+  const { openChat } = useChatWidget();
   useDocumentTitle('About');
   return (
     <div className="container page page-narrow">
@@ -37,7 +39,7 @@ export function AboutPage() {
       </section>
 
       <div className="form-actions">
-        <ButtonLink to="/#ask">Ask OfficeLume</ButtonLink>
+        <Button onClick={openChat}>Ask OfficeLume</Button>
         <ButtonLink to="/request-service" variant="secondary">Request Service</ButtonLink>
       </div>
     </div>

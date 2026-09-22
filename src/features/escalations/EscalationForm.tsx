@@ -72,7 +72,9 @@ export function EscalationForm({ initialQuestion = '', sessionId, onClose }: Esc
     <section className="card help-card" id="help" aria-labelledby="help-title">
       <header className="card-header">
         <div>
-          <h2 id="help-title">Request human help</h2>
+          <h2 id="help-title" tabIndex={-1}>
+            Request human help
+          </h2>
           <p className="muted">Tell us how to reach you and a team member will follow up.</p>
         </div>
         <Button variant="ghost" size="sm" onClick={onClose}>

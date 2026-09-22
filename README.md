@@ -61,7 +61,7 @@ officelume/
 │   ├── components/            Reusable UI (Button, Field, Alert, StatusBadge, DataState…)
 │   ├── features/
 │   │   ├── auth/              AuthProvider, RequireAdmin route guard
-│   │   ├── chat/              AI receptionist UI (useChat, ChatPanel, FrontDesk)
+│   │   ├── chat/              Floating AI receptionist widget (ChatWidget, ChatWidgetProvider, ChatPanel, useChat)
 │   │   ├── escalations/       Human-help form
 │   │   ├── serviceRequests/   Request form + admin filters
 │   │   └── admin/             Admin UI building blocks (tables, notes, status updater)
@@ -133,7 +133,7 @@ $env:VITE_USE_EMULATORS = "true"
 npm run dev                  # http://localhost:5173
 ```
 
-Try it: ask "What areas do you service?", then "Do you offer a lifetime warranty?" (escalates), submit a request at `/request-service`, and sign in at `/admin/login`.
+Try it: click **Ask OfficeLume** (floating button, lower-right of every page) and ask "What areas do you service?", then "Do you offer a lifetime warranty?" (escalates), submit a request at `/request-service`, and sign in at `/admin/login`.
 
 Bash equivalents: `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 npm run seed -- --with-samples`, `VITE_USE_EMULATORS=true npm run dev`.
 

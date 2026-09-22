@@ -37,7 +37,7 @@ The script prints pass/fail and latency per scenario and a summary; exit code is
 
 ## Manual test checklist (UI)
 
-1. Home: ask "What areas do you service?" → answer + "Request service" link.
+1. Any public page: click the floating **Ask OfficeLume** button (lower-right), ask "What areas do you service?" → answer + "Request service" link. Scroll and navigate to another page: the chat stays pinned lower-right with the conversation intact. Click **–** to minimize; the launcher remains visible.
 2. Ask "Do you offer a lifetime warranty?" → standard escalation message with **Request Human Help** / **Continue Chatting**.
 3. Submit human-help form without consent → blocked with message; with consent → `ESC-YYYY-NNNNNN`.
 4. `/request-service`: submit empty form → field errors, focus on first invalid field; valid form → `SR-YYYY-NNNNNN` and "not a guaranteed appointment" text.

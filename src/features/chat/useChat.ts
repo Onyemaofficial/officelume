@@ -29,6 +29,17 @@ const nextId = () => `m${++counter}`;
 
 export type SendResult = { ok: true } | { ok: false; error: string };
 
+export type ChatState = ReturnType<typeof useChat>;
+
+/** The customer's most recent question (used to prefill the human-help form). */
+export function lastUserQuestion(messages: UiMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message?.role === 'user') return message.content;
+  }
+  return '';
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<UiMessage[]>([{ id: nextId(), role: 'assistant', content: WELCOME_MESSAGE }]);
   const [loading, setLoading] = useState(false);

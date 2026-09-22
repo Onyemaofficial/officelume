@@ -1,7 +1,6 @@
-import { useEffect } from 'react';
-import { Link, useLocation } from 'react-router';
-import { ButtonLink } from '../components/Button';
-import { FrontDesk } from '../features/chat/FrontDesk';
+import { Link } from 'react-router';
+import { Button, ButtonLink } from '../components/Button';
+import { useChatWidget } from '../features/chat/chatWidgetContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 const STEPS = [
@@ -12,14 +11,7 @@ const STEPS = [
 
 export function HomePage() {
   useDocumentTitle('');
-  const { hash } = useLocation();
-
-  useEffect(() => {
-    if (hash === '#ask' || hash === '#help') {
-      document.getElementById('ask')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      if (hash === '#ask') document.getElementById('chat-input')?.focus({ preventScroll: true });
-    }
-  }, [hash]);
+  const { openChat, openHelp } = useChatWidget();
 
   return (
     <>
@@ -30,9 +22,9 @@ export function HomePage() {
             <h1>HVAC Help When You Need It.</h1>
             <p className="lead">Ask questions, request service, or connect with a team member.</p>
             <div className="hero-actions">
-              <ButtonLink to="/#ask" size="lg">
+              <Button size="lg" onClick={openChat}>
                 Ask OfficeLume
-              </ButtonLink>
+              </Button>
               <ButtonLink to="/request-service" size="lg" variant="secondary">
                 Request Service
               </ButtonLink>
@@ -60,25 +52,21 @@ export function HomePage() {
       </section>
 
       <section className="container action-cards" aria-label="How can we help?">
-        <Link to="/#ask" className="action-card">
+        <button type="button" className="action-card" onClick={openChat}>
           <span className="action-icon" aria-hidden="true">?</span>
           <h2>Ask a Question</h2>
           <p>Hours, services, service area, scheduling - get instant answers.</p>
-        </Link>
+        </button>
         <Link to="/request-service" className="action-card">
           <span className="action-icon" aria-hidden="true">✓</span>
           <h2>Request Service</h2>
           <p>Describe the issue and pick a preferred time. We follow up to confirm.</p>
         </Link>
-        <Link to="/#help" className="action-card">
+        <button type="button" className="action-card" onClick={() => openHelp()}>
           <span className="action-icon" aria-hidden="true">☎</span>
           <h2>Get Human Help</h2>
           <p>Prefer a person? Leave your details and a team member will reach out.</p>
-        </Link>
-      </section>
-
-      <section id="ask" className="container desk-section" aria-label="Ask OfficeLume">
-        <FrontDesk />
+        </button>
       </section>
 
       <section className="container how-it-works" aria-labelledby="how-title">

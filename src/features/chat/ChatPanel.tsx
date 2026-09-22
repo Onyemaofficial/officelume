@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { Button } from '../../components/Button';
-import { SUGGESTED_QUESTIONS, useChat, type UiMessage } from './useChat';
+import { SUGGESTED_QUESTIONS, type ChatState, type UiMessage } from './useChat';
 
 const SERVICE_CTA_CATEGORIES = new Set(['services', 'scheduling', 'pricing', 'emergency', 'service_area']);
 
 interface ChatPanelProps {
+  /** Shared chat state (owned by ChatWidgetProvider so it survives minimizing and navigation). */
+  chat: ChatState;
   /** Called when the customer asks for human help; `question` is their most recent question. */
   onRequestHelp: (question: string, sessionId?: string) => void;
 }
 
-export function ChatPanel({ onRequestHelp }: ChatPanelProps) {
-  const { messages, loading, send, sessionId } = useChat();
+/** The conversation body: message log, suggestions, input, and disclaimer. */
+export function ChatPanel({ chat, onRequestHelp }: ChatPanelProps) {
+  const { messages, loading, send, sessionId } = chat;
   const [draft, setDraft] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
@@ -19,7 +22,7 @@ export function ChatPanel({ onRequestHelp }: ChatPanelProps) {
 
   useEffect(() => {
     const log = logRef.current;
-    if (log) log.scrollTo({ top: log.scrollHeight, behavior: 'smooth' });
+    if (log) log.scrollTop = log.scrollHeight;
   }, [messages, loading]);
 
   async function submit(text: string) {
@@ -46,21 +49,7 @@ export function ChatPanel({ onRequestHelp }: ChatPanelProps) {
   const onlyWelcome = messages.length === 1;
 
   return (
-    <section className="chat-card" aria-labelledby="chat-title">
-      <header className="chat-header">
-        <div>
-          <h2 id="chat-title">Ask OfficeLume</h2>
-          <p>AI-assisted receptionist · answers from approved company information</p>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onRequestHelp(questionBefore(messages[messages.length - 1] ?? { id: '', role: 'assistant', content: '' }), sessionId)}
-        >
-          Talk to a person
-        </Button>
-      </header>
-
+    <>
       <div className="chat-log" ref={logRef} role="log" aria-live="polite" aria-relevant="additions" tabIndex={0} aria-label="Conversation">
         {messages.map((message) => {
           const showPrompt = message.role === 'assistant' && message.requiresEscalation && !dismissed.has(message.id);
@@ -130,7 +119,7 @@ export function ChatPanel({ onRequestHelp }: ChatPanelProps) {
           type="text"
           autoComplete="off"
           maxLength={500}
-          placeholder="Type your question, e.g. “Do you repair air conditioners?”"
+          placeholder="Type your question…"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           aria-invalid={inputError ? true : undefined}
@@ -150,6 +139,6 @@ export function ChatPanel({ onRequestHelp }: ChatPanelProps) {
         You are interacting with an AI-assisted receptionist. Complex or unsupported requests may be forwarded to a human
         representative. Please don’t share sensitive information in chat.
       </p>
-    </section>
+    </>
   );
 }

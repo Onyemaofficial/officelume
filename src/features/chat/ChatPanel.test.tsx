@@ -3,17 +3,23 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppError } from '../../utils/errors';
 import { ChatPanel } from './ChatPanel';
+import { useChat } from './useChat';
 
 const askOfficeLume = vi.fn();
 vi.mock('../../services/chatService', () => ({
   askOfficeLume: (...args: unknown[]) => askOfficeLume(...args),
 }));
 
+function Harness({ onRequestHelp }: { onRequestHelp: (q: string, s?: string) => void }) {
+  const chat = useChat();
+  return <ChatPanel chat={chat} onRequestHelp={onRequestHelp} />;
+}
+
 function setup() {
   const onRequestHelp = vi.fn();
   render(
     <MemoryRouter>
-      <ChatPanel onRequestHelp={onRequestHelp} />
+      <Harness onRequestHelp={onRequestHelp} />
     </MemoryRouter>,
   );
   return { onRequestHelp };
