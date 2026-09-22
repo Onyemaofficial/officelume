@@ -67,29 +67,22 @@ describe('floating chat widget', () => {
   });
   afterEach(() => sessionStorage.clear());
 
-  it('starts minimized as a launcher button, with the chat hidden', () => {
+  it('is open automatically on first launch, not collapsed', () => {
     renderApp();
-    expect(launcher()).toBeTruthy();
-    expect(dialog()).toBeNull();
-  });
-
-  it('opens from the launcher and offers a minimize button', () => {
-    renderApp();
-    fireEvent.click(launcher()!);
     expect(dialog()).toBeTruthy();
     expect(launcher()).toBeNull();
     expect(screen.getByRole('button', { name: 'Minimize chat' })).toBeTruthy();
     expect(screen.getByText(/You are interacting with an AI-assisted receptionist/)).toBeTruthy();
   });
 
-  it('minimizes back to the launcher, and Escape also minimizes', () => {
+  it('minimizes to a launcher button, and Escape also minimizes', () => {
     renderApp();
-    fireEvent.click(launcher()!);
     fireEvent.click(screen.getByRole('button', { name: 'Minimize chat' }));
     expect(dialog()).toBeNull();
     expect(launcher()).toBeTruthy();
 
     fireEvent.click(launcher()!);
+    expect(dialog()).toBeTruthy();
     fireEvent.keyDown(dialog()!, { key: 'Escape' });
     expect(dialog()).toBeNull();
   });
@@ -108,7 +101,6 @@ describe('floating chat widget', () => {
   it('"Talk to a person" opens the help form prefilled with the last question', async () => {
     askOfficeLume.mockResolvedValue({ sessionId: 'sess1234567', answer: 'Not sure.', supported: false, requiresEscalation: true, category: 'other' });
     renderApp();
-    fireEvent.click(launcher()!);
     await ask('Do you offer a lifetime warranty?');
     await screen.findByText('Not sure.');
 
@@ -121,7 +113,6 @@ describe('floating chat widget', () => {
   it('stays visible, open, and keeps the conversation when navigating to another page', async () => {
     askOfficeLume.mockResolvedValue({ sessionId: 'sess1234567', answer: 'We serve Riverton.', supported: true, requiresEscalation: false, category: 'service_area' });
     renderApp('/a');
-    fireEvent.click(launcher()!);
     await ask('What areas do you service?');
     await screen.findByText('We serve Riverton.');
 
@@ -135,7 +126,6 @@ describe('floating chat widget', () => {
   it('a minimized chat stays minimized across pages, and re-opens with the same conversation', async () => {
     askOfficeLume.mockResolvedValue({ sessionId: 'sess1234567', answer: 'We serve Riverton.', supported: true, requiresEscalation: false, category: 'service_area' });
     renderApp('/a');
-    fireEvent.click(launcher()!);
     await ask('What areas do you service?');
     await screen.findByText('We serve Riverton.');
     fireEvent.click(screen.getByRole('button', { name: 'Minimize chat' }));
@@ -156,7 +146,6 @@ describe('floating chat widget', () => {
     let resolve: (value: unknown) => void = () => undefined;
     askOfficeLume.mockReturnValue(new Promise((r) => (resolve = r)));
     renderApp();
-    fireEvent.click(launcher()!);
     await ask('What time do you open?');
     fireEvent.click(screen.getByRole('button', { name: 'Minimize chat' }));
 
@@ -169,10 +158,21 @@ describe('floating chat widget', () => {
     expect(screen.getByRole('button', { name: 'Open OfficeLume chat' })).toBeTruthy();
   });
 
-  it('remembers open/minimized for the browser session (survives a reload)', () => {
+  it('remembers a minimize choice for the browser session (survives a reload)', () => {
     const first = renderApp();
-    fireEvent.click(launcher()!);
+    fireEvent.click(screen.getByRole('button', { name: 'Minimize chat' }));
     first.unmount();
+
+    renderApp();
+    expect(dialog()).toBeNull();
+    expect(launcher()).toBeTruthy();
+  });
+
+  it('opens by default again in a fresh browser session (no stored choice)', () => {
+    const first = renderApp();
+    fireEvent.click(screen.getByRole('button', { name: 'Minimize chat' }));
+    first.unmount();
+    sessionStorage.clear(); // simulates a new tab/session with nothing stored yet
 
     renderApp();
     expect(dialog()).toBeTruthy();

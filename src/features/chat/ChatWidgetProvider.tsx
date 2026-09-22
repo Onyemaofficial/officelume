@@ -5,11 +5,13 @@ import { useChat } from './useChat';
 
 const STORAGE_KEY = 'officelume.chat.open';
 
+/** Open by default on first launch; afterwards remembers the visitor's own minimize/open choice. */
 function readStoredOpen(): boolean {
   try {
-    return sessionStorage.getItem(STORAGE_KEY) === '1';
+    const stored = sessionStorage.getItem(STORAGE_KEY);
+    return stored === null ? true : stored === '1';
   } catch {
-    return false; // storage blocked (private mode etc.) - start minimized
+    return true; // storage blocked (private mode etc.) - still default to open
   }
 }
 
@@ -29,7 +31,9 @@ function focusSoon(id: string) {
  * Owns the chat conversation and the widget's open/minimized state. It is mounted by the public
  * layout, which stays mounted across route changes - so the conversation, the human-help draft,
  * and the minimized/expanded choice all survive navigating between public pages.
- * The choice also survives a page reload for the browser session. Default: minimized.
+ * The widget starts OPEN on a visitor's first page load; if they minimize it, that choice is
+ * remembered (sessionStorage) for the rest of the browser session/reloads, so it doesn't force
+ * itself back open on every navigation.
  */
 export function ChatWidgetProvider({ children }: { children: ReactNode }) {
   const chat = useChat();
