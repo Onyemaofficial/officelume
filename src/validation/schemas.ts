@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CONTACT_METHODS, KNOWLEDGE_CATEGORIES, SERVICE_TYPES, TIME_WINDOWS } from '../types';
+import { CONTACT_METHODS, KNOWLEDGE_CATEGORIES, SERVICE_TYPES, STAFF_ROLES, TIME_WINDOWS } from '../types';
 
 /**
  * Client-side validation for instant feedback. The Cloud Functions re-validate everything with the
@@ -150,6 +150,13 @@ export const knowledgeSchema = z.object({
 export type KnowledgeFormData = z.infer<typeof knowledgeSchema>;
 
 export const noteSchema = safeText('Note', 1, 1000);
+
+export const createStaffSchema = z.object({
+  displayName: safeText('Full name', 2, 100),
+  email: emailSchema,
+  role: z.enum(STAFF_ROLES, { error: 'Choose a role.' }),
+});
+export type CreateStaffFormData = z.infer<typeof createStaffSchema>;
 
 /** Flatten Zod issues to { field: firstMessage }. */
 export function flattenIssues(error: z.ZodError): Record<string, string> {

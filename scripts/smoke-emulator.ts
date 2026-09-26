@@ -58,6 +58,9 @@ async function main() {
   const adminUser = await auth.createUser({ email: adminEmail, password, displayName: 'Smoke Admin' });
   await auth.setCustomUserClaims(adminUser.uid, { role: 'admin' });
   await db.doc(`users/${adminUser.uid}`).set({ role: 'admin', active: true, email: adminEmail, displayName: 'Smoke Admin' });
+  const staffUser = await auth.createUser({ email: 'staff@example.test', password, displayName: 'Smoke Staff' });
+  await auth.setCustomUserClaims(staffUser.uid, { role: 'staff' });
+  await db.doc(`users/${staffUser.uid}`).set({ role: 'staff', active: true, email: 'staff@example.test', displayName: 'Smoke Staff' });
   const customer = await auth.createUser({ email: 'customer@example.test', password });
 
   // ---- Public workflow ----
@@ -95,24 +98,24 @@ async function main() {
 
   // ---- Authorization ----
   const requestId = (await db.collection('serviceRequests').where('requestNumber', '==', requestNumber).get()).docs[0]?.id ?? '';
-  const anonUpdate = await call('updateServiceRequestAdmin', { requestId, status: 'reviewing' });
+  const anonUpdate = await call('updateServiceRequestStaff', { requestId, status: 'reviewing' });
   check('admin fn: unauthenticated call is rejected', anonUpdate.error?.status === 'UNAUTHENTICATED', JSON.stringify(anonUpdate));
 
   const customerToken = await signIn('customer@example.test', password);
-  const customerUpdate = await call('updateServiceRequestAdmin', { requestId, status: 'reviewing' }, customerToken);
+  const customerUpdate = await call('updateServiceRequestStaff', { requestId, status: 'reviewing' }, customerToken);
   check('admin fn: signed-in NON-admin is rejected', customerUpdate.error?.status === 'PERMISSION_DENIED', JSON.stringify(customerUpdate));
   const customerKnowledge = await call('saveKnowledgeArticleAdmin', { title: 'Hack', category: 'other', content: 'Injected knowledge.', active: true }, customerToken);
   check('admin fn: non-admin cannot edit knowledge', customerKnowledge.error?.status === 'PERMISSION_DENIED', JSON.stringify(customerKnowledge));
 
   const adminToken = await signIn(adminEmail, password);
-  const login = await call('recordAdminLoginEvent', { outcome: 'success' }, adminToken);
+  const login = await call('recordStaffLoginEvent', { outcome: 'success' }, adminToken);
   check('login audit: admin recognised as authorized', login.result?.['authorized'] === true, JSON.stringify(login));
-  const customerLogin = await call('recordAdminLoginEvent', { outcome: 'success' }, customerToken);
+  const customerLogin = await call('recordStaffLoginEvent', { outcome: 'success' }, customerToken);
   check('login audit: non-admin is NOT authorized', customerLogin.result?.['authorized'] === false, JSON.stringify(customerLogin));
 
-  const updated = await call('updateServiceRequestAdmin', { requestId, status: 'reviewing', note: 'Smoke test note.' }, adminToken);
+  const updated = await call('updateServiceRequestStaff', { requestId, status: 'reviewing', note: 'Smoke test note.' }, adminToken);
   check('admin fn: admin can update status + add note', updated.result?.['status'] === 'reviewing', JSON.stringify(updated));
-  const invalid = await call('updateServiceRequestAdmin', { requestId, status: 'completed' }, adminToken);
+  const invalid = await call('updateServiceRequestStaff', { requestId, status: 'completed' }, adminToken);
   check('admin fn: invalid transition is rejected', invalid.error?.status === 'FAILED_PRECONDITION', JSON.stringify(invalid));
 
   const knowledge = await call('saveKnowledgeArticleAdmin', { title: 'Warranty', category: 'policies', content: 'Sample warranty statement for testing.', active: true }, adminToken);
@@ -122,11 +125,62 @@ async function main() {
   const warranty = await call('askOfficeLume', { message: 'Do you offer a warranty?' });
   check('chat: newly added ACTIVE knowledge is used', warranty.result?.['supported'] === true, JSON.stringify(warranty));
 
+  // ---- Staff role (least privilege) ----
+  const staffToken = await signIn('staff@example.test', password);
+  const staffClaims = JSON.parse(Buffer.from(staffToken.split('.')[1] ?? '', 'base64url').toString('utf8')) as { role?: string };
+  check('staff: ID token carries the staff role claim', staffClaims.role === 'staff', JSON.stringify(staffClaims));
+
+  const staffLogin = await call('recordStaffLoginEvent', { outcome: 'success' }, staffToken);
+  check('staff: sign-in is recognised as authorized with role staff', staffLogin.result?.['authorized'] === true && staffLogin.result?.['role'] === 'staff', JSON.stringify(staffLogin));
+  check('staff: lastLoginAt is stamped on the profile', Boolean((await db.doc(`users/${staffUser.uid}`).get()).data()?.['lastLoginAt']));
+
+  const staffUpdate = await call('updateServiceRequestStaff', { requestId, status: 'contacted' }, staffToken);
+  check('staff: can update a request status', staffUpdate.result?.['status'] === 'contacted', JSON.stringify(staffUpdate));
+
+  const staffKnowledge = await call('saveKnowledgeArticleAdmin', { title: 'Nope', category: 'other', content: 'Staff may not edit knowledge.', active: true }, staffToken);
+  check('staff: cannot edit knowledge (admin only)', staffKnowledge.error?.status === 'PERMISSION_DENIED', JSON.stringify(staffKnowledge));
+  const staffCreate = await call('createStaffUserAdmin', { displayName: 'Evil Twin', email: 'evil@example.test', role: 'admin' }, staffToken);
+  check('staff: cannot create staff accounts', staffCreate.error?.status === 'PERMISSION_DENIED', JSON.stringify(staffCreate));
+  const staffPromote = await call('updateStaffRoleAdmin', { uid: staffUser.uid, role: 'admin' }, staffToken);
+  check('staff: cannot promote themselves', staffPromote.error?.status === 'PERMISSION_DENIED', JSON.stringify(staffPromote));
+  check('staff: role is unchanged after the attempt', (await db.doc(`users/${staffUser.uid}`).get()).data()?.['role'] === 'staff');
+
+  const staffLogout = await call('recordStaffLogoutEvent', {}, staffToken);
+  check('staff: logout is recorded', staffLogout.result?.['recorded'] === true, JSON.stringify(staffLogout));
+
+  // ---- Administrator provisions and manages staff ----
+  const created2 = await call('createStaffUserAdmin', { displayName: 'New Hire', email: 'New.Hire@Example.test', role: 'staff' }, adminToken);
+  const newUid = String(created2.result?.['uid'] ?? '');
+  check('admin: can create a staff account', newUid.length > 0, JSON.stringify(created2));
+  const newUser = newUid ? await auth.getUser(newUid) : undefined;
+  check('admin: new account has the staff claim, lowercase email, and is enabled', newUser?.customClaims?.['role'] === 'staff' && newUser?.email === 'new.hire@example.test' && newUser?.disabled === false);
+  check('admin: no password is stored in the profile', !/password|token|hash/i.test(JSON.stringify((await db.doc(`users/${newUid}`).get()).data() ?? {})));
+  const dup = await call('createStaffUserAdmin', { displayName: 'Dupe', email: 'new.hire@example.test', role: 'staff' }, adminToken);
+  check('admin: duplicate email is rejected', dup.error?.status === 'ALREADY_EXISTS', JSON.stringify(dup));
+
+  const promote = await call('updateStaffRoleAdmin', { uid: newUid, role: 'admin' }, adminToken);
+  check('admin: can change a role (claim follows profile)', promote.result?.['role'] === 'admin' && (await auth.getUser(newUid)).customClaims?.['role'] === 'admin', JSON.stringify(promote));
+  const selfDemote = await call('updateStaffRoleAdmin', { uid: adminUser.uid, role: 'staff' }, adminToken);
+  check('admin: cannot change their own role', selfDemote.error?.status === 'FAILED_PRECONDITION', JSON.stringify(selfDemote));
+  const selfDeactivate = await call('setStaffActiveStatusAdmin', { uid: adminUser.uid, active: false }, adminToken);
+  check('admin: cannot deactivate themselves', selfDeactivate.error?.status === 'FAILED_PRECONDITION', JSON.stringify(selfDeactivate));
+
+  const deactivate = await call('setStaffActiveStatusAdmin', { uid: staffUser.uid, active: false }, adminToken);
+  check('admin: can deactivate staff (login disabled)', deactivate.result?.['active'] === false && (await auth.getUser(staffUser.uid)).disabled === true, JSON.stringify(deactivate));
+  const staffAfter = await call('updateServiceRequestStaff', { requestId, status: 'scheduled' }, staffToken);
+  check('deactivated staff: their old token is refused immediately', staffAfter.error?.status === 'PERMISSION_DENIED', JSON.stringify(staffAfter));
+  const reactivate = await call('setStaffActiveStatusAdmin', { uid: staffUser.uid, active: true }, adminToken);
+  check('admin: can reactivate staff', reactivate.result?.['active'] === true && (await auth.getUser(staffUser.uid)).disabled === false, JSON.stringify(reactivate));
+
+  const noAuthCreate = await call('createStaffUserAdmin', { displayName: 'X Y', email: 'x@example.test', role: 'staff' });
+  check('anonymous: cannot create staff accounts', noAuthCreate.error?.status === 'UNAUTHENTICATED', JSON.stringify(noAuthCreate));
+
   // ---- Audit trail ----
   const types = new Set((await db.collection('auditLogs').get()).docs.map((d) => String(d.data()['eventType'])));
   for (const t of [
     'AI_RESPONSE_GENERATED', 'AI_RESPONSE_ESCALATED', 'SERVICE_REQUEST_CREATED', 'ESCALATION_CREATED',
-    'SERVICE_REQUEST_STATUS_UPDATED', 'SERVICE_REQUEST_NOTE_ADDED', 'ADMIN_LOGIN_SUCCESS', 'ADMIN_LOGIN_FAILURE', 'KNOWLEDGE_CREATED',
+    'SERVICE_REQUEST_STATUS_UPDATED', 'SERVICE_REQUEST_NOTE_ADDED', 'STAFF_LOGIN_SUCCESS', 'STAFF_LOGIN_FAILURE', 'KNOWLEDGE_CREATED',
+    'STAFF_LOGOUT', 'STAFF_CREATED', 'STAFF_ROLE_CHANGED', 'STAFF_DEACTIVATED', 'STAFF_REACTIVATED',
   ]) {
     check(`audit log contains ${t}`, types.has(t), `have: ${[...types].join(', ')}`);
   }

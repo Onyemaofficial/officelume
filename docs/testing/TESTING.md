@@ -2,10 +2,10 @@
 
 | Layer | Command | Needs | What it proves |
 |---|---|---|---|
-| Web unit/component | `npm test` | Node | Validation, error mapping, admin filters, route protection, chat & request form behaviour (incl. AI-unavailable and escalation flows) |
+| Web unit/component | `npm test` | Node | Validation, error mapping, admin filters, **staff login page, auth provider (session restore, expiry, logout), role-aware route protection and navigation, staff management, sign-in service**, chat widget, request form (144 tests) |
 | Functions unit | `npm run functions:test` | Node | Validation schemas, AI parsing, grounding checks, safety guards, retrieval, orchestrator escalation logic, authorization rules, status transitions, rate-limit policy, numbering, audit hygiene, **66-scenario capstone evaluation** |
-| Security rules | `npm run test:rules` | Java 21 + Firebase emulator (auto-downloaded) | Firestore rules deny everything they should (28 tests) |
-| Handler integration | `npm run test:integration` | Java 21 + emulator | Real handlers against Firestore: transactions, reference numbers, persistence, audit events, admin authorization, rate limiting (21 tests) |
+| Security rules | `npm run test:rules` | Java 21 + Firebase emulator (auto-downloaded) | Firestore rules deny everything they should, for anonymous users, non-staff, staff, and admins (39 tests) |
+| Handler integration | `npm run test:integration` | Java 21 + emulators | Real handlers against Firestore **and Auth**: transactions, reference numbers, persistence, audit events, staff/admin authorization, staff provisioning, role changes, deactivation (33 tests) |
 | End-to-end smoke | `npm run functions:build && npm run smoke` | Java 21 + emulators | Real callable HTTP protocol with Auth-emulator tokens: whole customer + admin workflow through deployed function wiring |
 | Everything | `npm run test:all` | Java 21 | The four Vitest suites above |
 
@@ -34,6 +34,19 @@ Remove-Item Env:ANTHROPIC_API_KEY
 ```
 
 The script prints pass/fail and latency per scenario and a summary; exit code is non-zero if either target is missed. Add new scenarios by editing `scenarios.json`, then `npm run docs:scenarios`.
+
+## Staff authentication checklist (manual, emulators)
+
+1. `/admin/dashboard` signed out → redirected to `/admin/login` (also `/admin/requests`, `/admin/users`, `/admin/audit`).
+2. Wrong password and unknown email → both show "Email or password is incorrect."
+3. A customer-style Firebase account (no role) → "This account is not authorized…" and is signed out.
+4. Deactivated account → "This account is currently inactive…"
+5. Staff sign-in → dashboard; nav shows Dashboard / Service requests / Escalations only; the profile menu shows name, role, email, Sign Out.
+6. Staff visits `/admin/users`, `/admin/audit`, `/admin/knowledge` → "Access denied".
+7. Refresh the page → still signed in. Sign Out → login page; protected pages need a login again.
+8. Admin sign-in (with Remember me) → 6 nav items; Staff management → add staff, promote, deactivate; the setup email appears in the Emulator UI.
+9. Audit log shows STAFF_* events with actor email and role, and no passwords.
+10. Forgot password → identical confirmation for real and unknown addresses.
 
 ## Manual test checklist (UI)
 

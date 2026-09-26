@@ -103,9 +103,21 @@ export const ESCALATION_TRANSITIONS: Record<EscalationStatus, readonly Escalatio
   resolved: ['reviewing'],
 };
 
+export const STAFF_ROLES = ['staff', 'admin'] as const;
+export type StaffRole = (typeof STAFF_ROLES)[number];
+export const STAFF_ROLE_LABELS: Record<StaffRole, string> = {
+  staff: 'Staff',
+  admin: 'Administrator',
+};
+
 export const AUDIT_EVENT_TYPES = [
-  'ADMIN_LOGIN_SUCCESS',
-  'ADMIN_LOGIN_FAILURE',
+  'STAFF_LOGIN_SUCCESS',
+  'STAFF_LOGIN_FAILURE',
+  'STAFF_LOGOUT',
+  'STAFF_CREATED',
+  'STAFF_ROLE_CHANGED',
+  'STAFF_DEACTIVATED',
+  'STAFF_REACTIVATED',
   'SERVICE_REQUEST_CREATED',
   'SERVICE_REQUEST_STATUS_UPDATED',
   'SERVICE_REQUEST_NOTE_ADDED',

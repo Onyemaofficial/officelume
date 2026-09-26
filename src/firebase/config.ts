@@ -24,12 +24,22 @@ const configured: FirebaseOptions = {
 /** True when real Firebase project values were supplied (or the emulator is in use). */
 export const isFirebaseConfigured = Boolean(configured.apiKey && configured.projectId) || useEmulators;
 
-// With the emulator suite a "demo-" project needs no real credentials.
-const options: FirebaseOptions = isFirebaseConfigured
-  ? { ...configured, apiKey: configured.apiKey ?? 'demo-api-key', projectId: configured.projectId ?? 'demo-officelume' }
-  : { apiKey: 'not-configured', projectId: 'not-configured', appId: 'not-configured' };
+/**
+ * Emulator mode ALWAYS targets the emulator project (default "demo-officelume", matching
+ * `npm run emulators`) and never your real project - even if real values are in .env.local. The
+ * Functions emulator serves URLs under its own project id, so mixing the two produces 404s, and this
+ * also guarantees local testing cannot touch production. To run the emulators under a different
+ * project id, start them with `--project <id>` and set VITE_EMULATOR_PROJECT_ID to the same value.
+ */
+function buildOptions(): FirebaseOptions {
+  if (useEmulators) {
+    return { apiKey: 'demo-api-key', appId: 'demo-app-id', projectId: env.VITE_EMULATOR_PROJECT_ID ?? 'demo-officelume' };
+  }
+  if (isFirebaseConfigured) return configured;
+  return { apiKey: 'not-configured', projectId: 'not-configured', appId: 'not-configured' };
+}
 
-const app = initializeApp(options);
+const app = initializeApp(buildOptions());
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);

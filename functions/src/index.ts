@@ -1,7 +1,9 @@
+import { getAuth } from 'firebase-admin/auth';
 import { onCall, type CallableRequest } from 'firebase-functions/v2/https';
 import { createAIProvider } from './ai/providerFactory';
 import { handleChat } from './ai/chatHandler';
-import { recordAdminLogin } from './auth/adminLoginHandler';
+import { createStaffUser, setStaffActiveStatus, updateStaffRole } from './auth/staffAdminHandlers';
+import { recordStaffLogin, recordStaffLogout } from './auth/staffLoginHandler';
 import { createEscalation, updateEscalation } from './escalations/escalationHandlers';
 import { saveKnowledgeArticle } from './knowledge/knowledgeHandlers';
 import { createServiceRequest, updateServiceRequest } from './serviceRequests/serviceRequestHandlers';
@@ -31,6 +33,12 @@ async function run<T>(name: string, task: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Admin SDK Auth handle; getDb() guarantees the app is initialised first. */
+function authAdmin() {
+  getDb();
+  return getAuth();
+}
+
 // ---------- Public (customer) ----------
 
 export const askOfficeLume = onCall(
@@ -54,22 +62,40 @@ export const submitEscalation = onCall(BASE_OPTIONS, (request: CallableRequest<u
   run('submitEscalation', () => createEscalation(getDb(), request)),
 );
 
-// ---------- Authentication events ----------
+// ---------- Staff authentication events ----------
 
-export const recordAdminLoginEvent = onCall(BASE_OPTIONS, (request: CallableRequest<unknown>) =>
-  run('recordAdminLoginEvent', () => recordAdminLogin(getDb(), request)),
+export const recordStaffLoginEvent = onCall(BASE_OPTIONS, (request: CallableRequest<unknown>) =>
+  run('recordStaffLoginEvent', () => recordStaffLogin(getDb(), request)),
 );
 
-// ---------- Administrator only (role verified inside each handler) ----------
-
-export const updateServiceRequestAdmin = onCall(BASE_OPTIONS, (request: CallableRequest<unknown>) =>
-  run('updateServiceRequestAdmin', () => updateServiceRequest(getDb(), request)),
+export const recordStaffLogoutEvent = onCall(BASE_OPTIONS, (request: CallableRequest<unknown>) =>
+  run('recordStaffLogoutEvent', () => recordStaffLogout(getDb(), request)),
 );
 
-export const updateEscalationAdmin = onCall(BASE_OPTIONS, (request: CallableRequest<unknown>) =>
-  run('updateEscalationAdmin', () => updateEscalation(getDb(), request)),
+// ---------- Staff and administrators (role verified inside each handler) ----------
+
+export const updateServiceRequestStaff = onCall(BASE_OPTIONS, (request: CallableRequest<unknown>) =>
+  run('updateServiceRequestStaff', () => updateServiceRequest(getDb(), request)),
 );
+
+export const updateEscalationStaff = onCall(BASE_OPTIONS, (request: CallableRequest<unknown>) =>
+  run('updateEscalationStaff', () => updateEscalation(getDb(), request)),
+);
+
+// ---------- Administrators only ----------
 
 export const saveKnowledgeArticleAdmin = onCall(BASE_OPTIONS, (request: CallableRequest<unknown>) =>
   run('saveKnowledgeArticleAdmin', () => saveKnowledgeArticle(getDb(), request)),
+);
+
+export const createStaffUserAdmin = onCall(BASE_OPTIONS, (request: CallableRequest<unknown>) =>
+  run('createStaffUserAdmin', () => createStaffUser(getDb(), authAdmin(), request)),
+);
+
+export const updateStaffRoleAdmin = onCall(BASE_OPTIONS, (request: CallableRequest<unknown>) =>
+  run('updateStaffRoleAdmin', () => updateStaffRole(getDb(), authAdmin(), request)),
+);
+
+export const setStaffActiveStatusAdmin = onCall(BASE_OPTIONS, (request: CallableRequest<unknown>) =>
+  run('setStaffActiveStatusAdmin', () => setStaffActiveStatus(getDb(), authAdmin(), request)),
 );

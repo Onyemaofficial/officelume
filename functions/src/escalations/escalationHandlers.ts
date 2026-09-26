@@ -1,7 +1,7 @@
 import { HttpsError, type CallableRequest } from 'firebase-functions/v2/https';
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { writeAuditLog, writeAuditLogInTransaction } from '../audit/audit';
-import { requireAdmin } from '../auth/authorization';
+import { requireStaff } from '../auth/authorization';
 import { COLLECTIONS, LIMITS } from '../shared/constants';
 import { parseInput } from '../shared/errors';
 import { nextReferenceNumber } from '../shared/numbering';
@@ -58,7 +58,7 @@ export async function createEscalation(db: Firestore, request: PublicRequest): P
   await writeAuditLog(db, {
     eventType: 'ESCALATION_CREATED',
     actorType: 'customer',
-    actorId: 'anonymous',
+    actorUid: 'anonymous',
     targetType: 'escalation',
     targetId: ref.id,
     action: 'create',
@@ -74,12 +74,12 @@ interface StoredEscalation {
   adminNotes?: Array<Record<string, unknown>>;
 }
 
-/** FR-11: administrators review and resolve escalations. */
+/** FR-11: staff and administrators review and resolve escalations. */
 export async function updateEscalation(
   db: Firestore,
   request: AdminRequest,
 ): Promise<{ status: EscalationStatus; changed: boolean }> {
-  const admin = await requireAdmin(request, db);
+  const staff = await requireStaff(request, db);
   const input = parseInput(updateEscalationSchema, request.data);
   const ref = db.collection(COLLECTIONS.escalations).doc(input.escalationId);
 
@@ -97,8 +97,10 @@ export async function updateEscalation(
       update['status'] = input.status;
       writeAuditLogInTransaction(db, tx, {
         eventType: 'ESCALATION_STATUS_UPDATED',
-        actorType: 'admin',
-        actorId: admin.uid,
+        actorType: 'staff',
+        actorUid: staff.uid,
+        actorEmail: staff.email,
+        actorRole: staff.role,
         targetType: 'escalation',
         targetId: ref.id,
         action: 'status_update',
@@ -110,12 +112,14 @@ export async function updateEscalation(
     if (input.note) {
       update['adminNotes'] = [
         ...(data.adminNotes ?? []),
-        { note: input.note, authorId: admin.uid, authorEmail: admin.email, createdAt: Timestamp.now() },
+        { note: input.note, authorId: staff.uid, authorEmail: staff.email, createdAt: Timestamp.now() },
       ].slice(-LIMITS.maxNotesPerRecord);
       writeAuditLogInTransaction(db, tx, {
         eventType: 'ESCALATION_NOTE_ADDED',
-        actorType: 'admin',
-        actorId: admin.uid,
+        actorType: 'staff',
+        actorUid: staff.uid,
+        actorEmail: staff.email,
+        actorRole: staff.role,
         targetType: 'escalation',
         targetId: ref.id,
         action: 'note_added',

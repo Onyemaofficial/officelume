@@ -7,6 +7,7 @@ import {
   LIMITS,
   REQUEST_STATUSES,
   SERVICE_TYPES,
+  STAFF_ROLES,
   TIME_WINDOWS,
 } from './constants';
 import { containsMarkup, normalizeWhitespace } from './sanitize';
@@ -176,11 +177,34 @@ export const knowledgeSaveSchema = z.object({
 });
 export type KnowledgeSaveInput = z.infer<typeof knowledgeSaveSchema>;
 
-export const recordAdminLoginSchema = z.object({
+export const recordStaffLoginSchema = z.object({
   outcome: z.enum(['success', 'failure']),
   reason: z.enum(['invalid_credentials', 'not_authorized', 'too_many_attempts', 'other']).optional(),
 });
-export type RecordAdminLoginInput = z.infer<typeof recordAdminLoginSchema>;
+export type RecordStaffLoginInput = z.infer<typeof recordStaffLoginSchema>;
+
+// ---------- Staff management (administrators only) ----------
+
+export const staffRoleSchema = z.enum(STAFF_ROLES, { error: 'Choose a role.' });
+
+export const createStaffSchema = z.object({
+  displayName: safeText('Full name', 2, 100),
+  email: emailSchema,
+  role: staffRoleSchema,
+});
+export type CreateStaffInput = z.infer<typeof createStaffSchema>;
+
+export const updateStaffRoleSchema = z.object({
+  uid: docIdSchema,
+  role: staffRoleSchema,
+});
+export type UpdateStaffRoleInput = z.infer<typeof updateStaffRoleSchema>;
+
+export const setStaffActiveSchema = z.object({
+  uid: docIdSchema,
+  active: z.boolean({ error: 'Active flag is required.' }),
+});
+export type SetStaffActiveInput = z.infer<typeof setStaffActiveSchema>;
 
 export const auditEventTypeSchema = z.enum(AUDIT_EVENT_TYPES);
 

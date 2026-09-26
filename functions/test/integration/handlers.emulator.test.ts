@@ -1,9 +1,11 @@
 import { getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth, type Auth } from 'firebase-admin/auth';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { handleChat } from '../../src/ai/chatHandler';
 import { MockProvider } from '../../src/ai/mockProvider';
-import { recordAdminLogin } from '../../src/auth/adminLoginHandler';
+import { createStaffUser, setStaffActiveStatus, updateStaffRole } from '../../src/auth/staffAdminHandlers';
+import { recordStaffLogin, recordStaffLogout } from '../../src/auth/staffLoginHandler';
 import { createEscalation, updateEscalation } from '../../src/escalations/escalationHandlers';
 import { saveKnowledgeArticle } from '../../src/knowledge/knowledgeHandlers';
 import { createServiceRequest, updateServiceRequest } from '../../src/serviceRequests/serviceRequestHandlers';
@@ -16,6 +18,7 @@ import { DEFAULT_KNOWLEDGE_BASE } from '../../../scripts/seed/knowledgeBase';
  */
 
 let db: Firestore;
+let auth: Auth;
 let ipCounter = 0;
 
 function publicRequest(data: unknown) {
@@ -33,7 +36,13 @@ function adminRequest(data: unknown, uid = 'admin1', role: string | null = 'admi
   } as never;
 }
 
+async function clearAuthUsers() {
+  const { users } = await auth.listUsers(1000);
+  if (users.length > 0) await auth.deleteUsers(users.map((u) => u.uid));
+}
+
 async function clearAll() {
+  await clearAuthUsers();
   for (const name of ['users', 'knowledgeBase', 'serviceRequests', 'escalations', 'chatSessions', 'auditLogs', 'counters', 'rateLimits']) {
     await db.recursiveDelete(db.collection(name));
   }
@@ -68,6 +77,7 @@ beforeAll(() => {
   if (!process.env['FIRESTORE_EMULATOR_HOST']) throw new Error('Run via the emulator: npm run test:integration');
   if (getApps().length === 0) initializeApp({ projectId: 'demo-officelume' });
   db = getFirestore();
+  auth = getAuth();
 });
 
 beforeEach(async () => {
@@ -238,7 +248,9 @@ describe('admin authorization on every privileged function', () => {
     expect(data['adminNotes']).toHaveLength(1);
     const events = await auditEvents('SERVICE_REQUEST_STATUS_UPDATED');
     expect(events).toHaveLength(1);
-    expect(events[0]!['actorId']).toBe('admin1');
+    expect(events[0]!['actorUid']).toBe('admin1');
+    expect(events[0]!['actorRole']).toBe('admin');
+    expect(events[0]!['actorEmail']).toBe('admin@example.com');
     expect(events[0]!['metadata']).toMatchObject({ from: 'new', to: 'reviewing' });
     expect(await auditEvents('SERVICE_REQUEST_NOTE_ADDED')).toHaveLength(1);
   });
@@ -268,20 +280,165 @@ describe('admin authorization on every privileged function', () => {
   });
 });
 
-describe('admin login audit', () => {
-  it('records success for a real admin and failure for a non-admin', async () => {
-    expect(await recordAdminLogin(db, adminRequest({ outcome: 'success' }))).toEqual({ authorized: true });
-    expect(await recordAdminLogin(db, adminRequest({ outcome: 'success' }, 'stranger', null))).toEqual({ authorized: false });
-    expect(await auditEvents('ADMIN_LOGIN_SUCCESS')).toHaveLength(1);
-    expect(await auditEvents('ADMIN_LOGIN_FAILURE')).toHaveLength(1);
+describe('staff sign-in audit', () => {
+  it('records success for a real admin, stamps lastLoginAt, and refuses a non-staff account', async () => {
+    expect(await recordStaffLogin(db, adminRequest({ outcome: 'success' }))).toEqual({ authorized: true, role: 'admin' });
+    expect(await recordStaffLogin(db, adminRequest({ outcome: 'success' }, 'stranger', null))).toEqual({ authorized: false, role: null });
+
+    expect((await db.doc('users/admin1').get()).data()!['lastLoginAt']).toBeTruthy();
+    expect(await db.doc('users/stranger').get().then((d) => d.exists)).toBe(false);
+
+    const success = await auditEvents('STAFF_LOGIN_SUCCESS');
+    expect(success).toHaveLength(1);
+    expect(success[0]).toMatchObject({ actorUid: 'admin1', actorRole: 'admin', actorEmail: 'admin@example.com' });
+    expect(await auditEvents('STAFF_LOGIN_FAILURE')).toHaveLength(1);
   });
 
-  it('records failed sign-ins from unauthenticated callers without storing credentials', async () => {
-    const result = await recordAdminLogin(db, publicRequest({ outcome: 'failure', reason: 'invalid_credentials', password: 'hunter2', email: 'x@y.com' }));
-    expect(result).toEqual({ authorized: false });
-    const events = await auditEvents('ADMIN_LOGIN_FAILURE');
+  it('records failed sign-ins from unauthenticated callers without storing credentials or emails', async () => {
+    const result = await recordStaffLogin(db, publicRequest({ outcome: 'failure', reason: 'invalid_credentials', password: 'hunter2', email: 'x@y.com' }));
+    expect(result).toEqual({ authorized: false, role: null });
+    const events = await auditEvents('STAFF_LOGIN_FAILURE');
     expect(events).toHaveLength(1);
     expect(JSON.stringify(events)).not.toContain('hunter2');
     expect(JSON.stringify(events)).not.toContain('x@y.com');
+  });
+
+  it('records logout for staff only', async () => {
+    expect(await recordStaffLogout(db, adminRequest({}))).toEqual({ recorded: true });
+    expect(await recordStaffLogout(db, adminRequest({}, 'someone', null))).toEqual({ recorded: false });
+    expect(await recordStaffLogout(db, { auth: undefined } as never)).toEqual({ recorded: false });
+    expect(await auditEvents('STAFF_LOGOUT')).toHaveLength(1);
+  });
+});
+
+describe('staff (non-admin) access levels', () => {
+  let requestId: string;
+
+  beforeEach(async () => {
+    await db.doc('users/staff1').set({ role: 'staff', active: true });
+    await createServiceRequest(db, publicRequest(validRequest()));
+    requestId = (await db.collection('serviceRequests').get()).docs[0]!.id;
+    await createEscalation(
+      db,
+      publicRequest({
+        customerName: 'Sam Lee',
+        phone: '555-010-9999',
+        email: 'sam@example.com',
+        preferredContactMethod: 'email',
+        originalQuestion: 'Do you offer a warranty on repairs?',
+        consent: true,
+      }),
+    );
+  });
+
+  it('staff can update request status and escalations; the audit trail records their role', async () => {
+    expect(await updateServiceRequest(db, adminRequest({ requestId, status: 'reviewing' }, 'staff1', 'staff'))).toEqual({ status: 'reviewing', changed: true });
+    const escalationId = (await db.collection('escalations').get()).docs[0]!.id;
+    await updateEscalation(db, adminRequest({ escalationId, status: 'contacted' }, 'staff1', 'staff'));
+
+    const events = await auditEvents('SERVICE_REQUEST_STATUS_UPDATED');
+    expect(events[0]).toMatchObject({ actorUid: 'staff1', actorRole: 'staff', actorType: 'staff' });
+    expect(await auditEvents('ESCALATION_STATUS_UPDATED')).toHaveLength(1);
+  });
+
+  it('staff cannot manage knowledge or staff accounts', async () => {
+    const staff = (data: unknown) => adminRequest(data, 'staff1', 'staff');
+    await expect(saveKnowledgeArticle(db, staff({ title: 'Hack', category: 'other', content: 'Injected knowledge.', active: true }))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(createStaffUser(db, auth, staff({ displayName: 'Evil Twin', email: 'evil@example.com', role: 'admin' }))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(updateStaffRole(db, auth, staff({ uid: 'staff1', role: 'admin' }))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(setStaffActiveStatus(db, auth, staff({ uid: 'admin1', active: false }))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect((await db.doc('users/staff1').get()).data()!['role']).toBe('staff');
+  });
+
+  it('a stale admin token is refused once the profile says staff (role mismatch fails closed)', async () => {
+    await expect(
+      saveKnowledgeArticle(db, adminRequest({ title: 'Hack', category: 'other', content: 'Injected knowledge.', active: true }, 'staff1', 'admin')),
+    ).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(updateServiceRequest(db, adminRequest({ requestId, status: 'reviewing' }, 'staff1', 'admin'))).rejects.toMatchObject({ code: 'permission-denied' });
+  });
+});
+
+describe('staff management (Admin SDK against the Auth emulator)', () => {
+  const newStaff = { displayName: 'Pat Lee', email: 'Pat.Lee@Example.com', role: 'staff' };
+
+  async function provisionAdminUser(uid: string) {
+    await auth.createUser({ uid, email: uid + '@example.com', password: 'not-used-anywhere-123' });
+    await auth.setCustomUserClaims(uid, { role: 'admin' });
+    await db.doc('users/' + uid).set({ role: 'admin', active: true, email: uid + '@example.com' });
+  }
+
+  it('creates a staff login with a role claim, a profile, and an audit event - and never stores a password', async () => {
+    const { uid } = await createStaffUser(db, auth, adminRequest(newStaff));
+    const user = await auth.getUser(uid);
+    expect(user.email).toBe('pat.lee@example.com');
+    expect(user.displayName).toBe('Pat Lee');
+    expect(user.disabled).toBe(false);
+    expect(user.customClaims).toEqual({ role: 'staff' });
+
+    const profile = (await db.doc('users/' + uid).get()).data()!;
+    expect(profile).toMatchObject({ uid, displayName: 'Pat Lee', email: 'pat.lee@example.com', role: 'staff', active: true });
+    expect(JSON.stringify(profile)).not.toMatch(/password|token|hash/i);
+
+    const events = await auditEvents('STAFF_CREATED');
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ actorUid: 'admin1', actorRole: 'admin', targetId: uid, metadata: { role: 'staff' } });
+    expect(JSON.stringify(events)).not.toMatch(/pat\.lee@example\.com/i);
+  });
+
+  it('rejects duplicate emails, bad input, and unauthenticated callers', async () => {
+    await createStaffUser(db, auth, adminRequest(newStaff));
+    await expect(createStaffUser(db, auth, adminRequest({ ...newStaff, email: 'pat.lee@example.com' }))).rejects.toMatchObject({ code: 'already-exists' });
+    await expect(createStaffUser(db, auth, adminRequest({ ...newStaff, role: 'owner' }))).rejects.toMatchObject({ code: 'invalid-argument' });
+    await expect(createStaffUser(db, auth, { data: newStaff, auth: undefined } as never)).rejects.toMatchObject({ code: 'unauthenticated' });
+    expect((await auth.listUsers()).users).toHaveLength(1);
+  });
+
+  it('changes a role: profile, claim, and audit event move together and old sessions are revoked', async () => {
+    const { uid } = await createStaffUser(db, auth, adminRequest(newStaff));
+    await updateStaffRole(db, auth, adminRequest({ uid, role: 'admin' }));
+
+    expect((await db.doc('users/' + uid).get()).data()!['role']).toBe('admin');
+    expect((await auth.getUser(uid)).customClaims).toEqual({ role: 'admin' });
+    expect((await auth.getUser(uid)).tokensValidAfterTime).toBeTruthy();
+    const events = await auditEvents('STAFF_ROLE_CHANGED');
+    expect(events[0]).toMatchObject({ targetId: uid, metadata: { fromRole: 'staff', toRole: 'admin' } });
+  });
+
+  it('will not let an administrator change their own role or deactivate themselves', async () => {
+    await expect(updateStaffRole(db, auth, adminRequest({ uid: 'admin1', role: 'staff' }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    await expect(setStaffActiveStatus(db, auth, adminRequest({ uid: 'admin1', active: false }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect((await db.doc('users/admin1').get()).data()).toMatchObject({ role: 'admin', active: true });
+  });
+
+  it('deactivates a staff member everywhere at once, then reactivates them', async () => {
+    const { uid } = await createStaffUser(db, auth, adminRequest(newStaff));
+    await setStaffActiveStatus(db, auth, adminRequest({ uid, active: false }));
+
+    expect((await db.doc('users/' + uid).get()).data()!['active']).toBe(false);
+    expect((await auth.getUser(uid)).disabled).toBe(true);
+    // Their still-valid token is useless: the server refuses inactive profiles.
+    await expect(updateServiceRequest(db, adminRequest({ requestId: 'x', status: 'reviewing' }, uid, 'staff'))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(await auditEvents('STAFF_DEACTIVATED')).toHaveLength(1);
+
+    await setStaffActiveStatus(db, auth, adminRequest({ uid, active: true }));
+    expect((await auth.getUser(uid)).disabled).toBe(false);
+    expect((await db.doc('users/' + uid).get()).data()!['active']).toBe(true);
+    expect(await auditEvents('STAFF_REACTIVATED')).toHaveLength(1);
+  });
+
+  it('lets an administrator demote another administrator when one still remains', async () => {
+    await provisionAdminUser('admin2');
+    await updateStaffRole(db, auth, adminRequest({ uid: 'admin2', role: 'staff' }));
+    expect((await db.doc('users/admin2').get()).data()!['role']).toBe('staff');
+  });
+
+  it('cannot enable a Firebase login that has no staff profile', async () => {
+    const stray = await auth.createUser({ email: 'stray@example.com', password: 'not-used-anywhere-123', disabled: true });
+    await expect(setStaffActiveStatus(db, auth, adminRequest({ uid: stray.uid, active: true }))).rejects.toMatchObject({ code: 'not-found' });
+    expect((await auth.getUser(stray.uid)).disabled).toBe(true);
+  });
+
+  it('reports unknown staff members as not found', async () => {
+    await expect(updateStaffRole(db, auth, adminRequest({ uid: 'ghost', role: 'admin' }))).rejects.toMatchObject({ code: 'not-found' });
   });
 });

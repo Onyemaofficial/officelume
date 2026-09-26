@@ -14,7 +14,7 @@ interface DataStateProps {
 
 /** Standard loading / error presentation for admin data. Auth failures offer a re-sign-in. */
 export function DataState({ loading, error, onRetry, children }: DataStateProps) {
-  const { signOut } = useAuth();
+  const { logout } = useAuth();
 
   if (loading) {
     return (
@@ -30,7 +30,7 @@ export function DataState({ loading, error, onRetry, children }: DataStateProps)
         title={isAuthFailure(error) ? 'Access problem' : 'We could not load this data'}
         action={
           isAuthFailure(error) ? (
-            <Button size="sm" variant="secondary" onClick={() => void signOut()}>
+            <Button size="sm" variant="secondary" onClick={() => void logout()}>
               Sign in again
             </Button>
           ) : (

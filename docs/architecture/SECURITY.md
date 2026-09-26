@@ -4,18 +4,18 @@
 
 **Principle: deny by default, allow the minimum.**
 
-1. **No client writes anywhere.** Customers are anonymous, and admin mutations need validation and audit trails, so all writes happen in Cloud Functions using the Admin SDK (which bypasses rules). Public record creation (chat, service requests, escalations) is therefore validated, rate limited, and audited server-side rather than exposed through open `create` rules.
-2. **Reads are admin-only** for `knowledgeBase`, `serviceRequests`, `escalations`, `chatSessions` (+ `messages`), and `auditLogs`. Customers never read Firestore; they receive answers from `askOfficeLume`.
-3. **`isAdmin()` requires both** a `role == "admin"` custom claim (Admin SDK only) **and** an existing `users/{uid}` profile with `role == "admin"` and `active == true`. A stolen/forged claim without the profile, or a valid profile without the claim, is denied. Deactivating the profile revokes access immediately.
-4. **`users/{uid}`**: a signed-in user may read only their own document; nobody can write it from a client (prevents self-promotion).
+1. **No client writes anywhere - for anyone, including staff and admins.** Customers are anonymous, and admin mutations need validation and audit trails, so all writes happen in Cloud Functions using the Admin SDK (which bypasses rules). Public record creation (chat, service requests, escalations) is therefore validated, rate limited, and audited server-side rather than exposed through open `create` rules.
+2. **Two roles.** `staff` may read `serviceRequests` and `escalations` (the work queue). `admin` may additionally read `knowledgeBase`, `chatSessions` (+ `messages`), `auditLogs`, and every `users` profile. Customers never read Firestore; they receive answers from `askOfficeLume`.
+3. **`isStaff()` / `isAdmin()` require both** a `role` custom claim of `staff`/`admin` (Admin SDK only) **and** an existing `users/{uid}` profile that is `active == true` **and whose `role` equals the claim**. A stolen or forged claim without the profile, a valid profile without the claim, a deactivated account, and a stale claim after a role change (claim admin, profile staff) are all denied. Deactivating the profile revokes access immediately.
+4. **`users/{uid}`**: a signed-in user may read only their own document; administrators may read all profiles (staff management). Nobody writes profiles from a client, so **a staff member cannot promote themselves**.
 5. **`counters/*` and `rateLimits/*`** are fully closed - server bookkeeping only.
 6. A final `match /{document=**}` denies everything not explicitly listed.
 
-These rules are verified by `test/rules/firestore.rules.test.ts` (28 tests against the Firestore emulator): anonymous reads/writes denied on every collection, signed-in non-admins denied, claim-without-profile denied, profile-without-claim denied, deactivated admin denied, admin writes denied, unknown collections denied.
+These rules are verified by `test/rules/firestore.rules.test.ts` (39 tests against the Firestore emulator): anonymous reads/writes denied on every collection; signed-in non-staff denied; staff can read the queue but not admin-only collections, other profiles, or write anything (including their own role); claim-without-profile, profile-without-claim, deactivated staff/admin, and stale-claim-after-demotion all denied; admin can read everything intended but write nothing; unknown collections denied.
 
 ## Function-layer authorization
 
-Frontend route guards are convenience only. Every admin callable begins with `requireAdmin()` (`functions/src/auth/authorization.ts`):
+Frontend route guards are convenience only. Every staff callable begins with `requireStaff()` and every admin-only callable with `requireAdmin()` (`functions/src/auth/authorization.ts`):
 
 * no auth → `unauthenticated`
 * auth but no admin claim / no active admin profile → `permission-denied`
@@ -57,3 +57,12 @@ Verified by unit tests (`authorization.test.ts`), handler integration tests agai
 * Configure billing alerts and Anthropic spend limits.
 * Add multi-factor authentication for administrator accounts in Firebase Authentication.
 * Review data-retention policy for chat logs and requests.
+
+## Staff accounts
+
+* **No public registration.** Accounts exist only when an administrator creates them (`createStaffUserAdmin`) or the bootstrap script does (`scripts/create-admin.ts`).
+* **Passwords never touch our code or database.** New accounts get a random password nobody sees; the employee sets their own through Firebase's password-setup email. The bootstrap script prompts (hidden) or reads `ADMIN_INITIAL_PASSWORD` for that one command. Firestore holds only non-sensitive profile metadata.
+* **Role changes are server-side and safe:** self role-change and self-deactivation are blocked, the last active administrator cannot be removed or demoted (checked inside a Firestore transaction), and role/deactivation revoke the person's refresh tokens.
+* **Sign-in errors do not reveal accounts:** unknown email and wrong password produce the same message, and the password-reset page always gives the same confirmation.
+* **Audit trail:** `STAFF_LOGIN_SUCCESS/FAILURE`, `STAFF_LOGOUT`, `STAFF_CREATED`, `STAFF_ROLE_CHANGED`, `STAFF_DEACTIVATED`, `STAFF_REACTIVATED`, plus request/escalation/knowledge changes, each with actor uid, email, and role. Failure events store no email or credentials.
+* **Credentials hygiene:** `.gitignore` excludes `.env*`, service-account/Admin SDK key files, and `functions/.secret.local`.

@@ -6,8 +6,10 @@ import type {
   KnowledgeArticle,
   RequestStatus,
   ServiceRequest,
+  StaffRole,
   StatusHistoryEntry,
 } from '../types';
+import type { StaffProfile } from '../features/auth/auth.types';
 
 /** Convert a Firestore Timestamp-like value (or nothing) to a Date. */
 export function toDate(value: unknown): Date | null {
@@ -109,11 +111,27 @@ export function mapAuditLog(snap: Snap): AuditLog {
     id: snap.id,
     eventType: str(d['eventType']) as AuditLog['eventType'],
     actorType: str(d['actorType']),
-    actorId: str(d['actorId']),
+    actorUid: str(d['actorUid']),
+    actorEmail: typeof d['actorEmail'] === 'string' ? d['actorEmail'] : null,
+    actorRole: d['actorRole'] === 'staff' || d['actorRole'] === 'admin' ? (d['actorRole'] as StaffRole) : null,
     targetType: str(d['targetType']),
     targetId: str(d['targetId']),
     action: str(d['action']),
     metadata,
     timestamp: toDate(d['timestamp']),
+  };
+}
+
+export function mapStaffProfile(snap: Snap): StaffProfile {
+  const d = snap.data() ?? {};
+  return {
+    uid: snap.id,
+    displayName: str(d['displayName']),
+    email: str(d['email']),
+    role: d['role'] === 'admin' ? 'admin' : 'staff',
+    active: d['active'] === true,
+    createdAt: toDate(d['createdAt']),
+    updatedAt: toDate(d['updatedAt']),
+    lastLoginAt: toDate(d['lastLoginAt']),
   };
 }

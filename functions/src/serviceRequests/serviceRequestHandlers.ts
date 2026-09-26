@@ -1,7 +1,7 @@
 import { HttpsError, type CallableRequest } from 'firebase-functions/v2/https';
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { writeAuditLog, writeAuditLogInTransaction } from '../audit/audit';
-import { requireAdmin } from '../auth/authorization';
+import { requireStaff } from '../auth/authorization';
 import { COLLECTIONS, LIMITS } from '../shared/constants';
 import { parseInput } from '../shared/errors';
 import { nextReferenceNumber } from '../shared/numbering';
@@ -48,7 +48,7 @@ export async function createServiceRequest(db: Firestore, request: PublicRequest
   await writeAuditLog(db, {
     eventType: 'SERVICE_REQUEST_CREATED',
     actorType: 'customer',
-    actorId: 'anonymous',
+    actorUid: 'anonymous',
     targetType: 'serviceRequest',
     targetId: ref.id,
     action: 'create',
@@ -65,12 +65,12 @@ interface StoredRequest {
   adminNotes?: Array<Record<string, unknown>>;
 }
 
-/** FR-10: administrators change status and/or append internal notes. */
+/** FR-10: staff and administrators change status and/or append internal notes. */
 export async function updateServiceRequest(
   db: Firestore,
   request: AdminRequest,
 ): Promise<{ status: RequestStatus; changed: boolean }> {
-  const admin = await requireAdmin(request, db);
+  const staff = await requireStaff(request, db);
   const input = parseInput(updateServiceRequestSchema, request.data);
   const ref = db.collection(COLLECTIONS.serviceRequests).doc(input.requestId);
 
@@ -88,12 +88,14 @@ export async function updateServiceRequest(
       update['status'] = input.status;
       update['statusHistory'] = [
         ...(data.statusHistory ?? []),
-        { status: input.status, changedAt: Timestamp.now(), changedBy: admin.uid },
+        { status: input.status, changedAt: Timestamp.now(), changedBy: staff.uid },
       ].slice(-LIMITS.maxStatusHistory);
       writeAuditLogInTransaction(db, tx, {
         eventType: 'SERVICE_REQUEST_STATUS_UPDATED',
-        actorType: 'admin',
-        actorId: admin.uid,
+        actorType: 'staff',
+        actorUid: staff.uid,
+        actorEmail: staff.email,
+        actorRole: staff.role,
         targetType: 'serviceRequest',
         targetId: ref.id,
         action: 'status_update',
@@ -105,12 +107,14 @@ export async function updateServiceRequest(
     if (input.note) {
       update['adminNotes'] = [
         ...(data.adminNotes ?? []),
-        { note: input.note, authorId: admin.uid, authorEmail: admin.email, createdAt: Timestamp.now() },
+        { note: input.note, authorId: staff.uid, authorEmail: staff.email, createdAt: Timestamp.now() },
       ].slice(-LIMITS.maxNotesPerRecord);
       writeAuditLogInTransaction(db, tx, {
         eventType: 'SERVICE_REQUEST_NOTE_ADDED',
-        actorType: 'admin',
-        actorId: admin.uid,
+        actorType: 'staff',
+        actorUid: staff.uid,
+        actorEmail: staff.email,
+        actorRole: staff.role,
         targetType: 'serviceRequest',
         targetId: ref.id,
         action: 'note_added',

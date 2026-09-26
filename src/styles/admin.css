@@ -95,3 +95,43 @@
   .row-detail td { display: block; text-align: left; }
   .row-detail td::before { content: none; }
 }
+
+/* ---------- Staff portal top bar & account menu ---------- */
+.admin-topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.6rem clamp(1rem, 3vw, 2rem); background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+.admin-topbar-title { display: flex; align-items: baseline; gap: 0.6rem; min-width: 0; }
+.admin-topbar-brand { font-weight: 800; color: var(--navy-800); letter-spacing: -0.01em; }
+.admin-topbar-sub { color: var(--ink-muted); font-weight: 600; font-size: 0.9rem; padding-left: 0.6rem; border-left: 1px solid var(--line-strong); }
+
+.profile-menu { position: relative; }
+.profile-trigger { display: inline-flex; align-items: center; gap: 0.6rem; min-height: 44px; padding: 0.25rem 0.6rem 0.25rem 0.3rem; border: 1px solid var(--line-strong); border-radius: 999px; background: #fff; font: inherit; color: var(--ink); cursor: pointer; }
+.profile-trigger:hover { background: var(--blue-50); border-color: var(--blue-400); }
+.avatar { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--navy-800); color: #fff; font-weight: 700; font-size: 0.8rem; flex: none; }
+.profile-trigger-text { display: grid; text-align: left; line-height: 1.15; min-width: 0; }
+.profile-name { font-weight: 650; font-size: 0.9rem; max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-role { font-size: 0.72rem; color: var(--ink-muted); }
+.profile-caret { color: var(--ink-muted); font-size: 0.8rem; }
+.profile-panel { position: absolute; right: 0; top: calc(100% + 0.5rem); z-index: 40; min-width: 17rem; max-width: calc(100vw - 2rem); padding: 1rem; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-lg); display: grid; gap: 0.15rem; }
+.profile-panel-name { margin: 0; font-weight: 700; color: var(--navy-800); }
+.profile-panel-role { margin: 0; font-size: 0.8rem; font-weight: 650; color: var(--blue-700); }
+.profile-panel-email { margin: 0 0 0.75rem; font-size: 0.85rem; color: var(--ink-muted); overflow-wrap: anywhere; }
+
+.you-tag, .actor-role { color: var(--ink-muted); font-weight: 500; font-size: 0.85rem; }
+.access-denied { max-width: 34rem; margin: 3rem auto; text-align: center; display: grid; gap: 0.5rem; justify-items: center; }
+.access-denied h1 { font-size: 1.6rem; }
+
+/* ---------- Login extras ---------- */
+.password-wrap { position: relative; }
+.password-input { padding-right: 4.5rem; }
+.password-toggle { position: absolute; right: 0.4rem; top: 50%; transform: translateY(-50%); min-height: 34px; padding: 0 0.7rem; border: 0; border-radius: 8px; background: transparent; color: var(--blue-700); font: inherit; font-weight: 650; font-size: 0.85rem; cursor: pointer; }
+.password-toggle:hover { background: var(--blue-50); }
+.login-options { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.login-options .field { margin: 0; }
+.link-button { border: 0; background: none; padding: 0.25rem 0; font: inherit; font-weight: 600; color: var(--blue-600); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.link-button:hover { color: var(--blue-700); }
+.login-authorized { margin: 0 0 0.75rem; padding: 0.6rem 0.8rem; border-radius: 10px; background: var(--surface-alt); border: 1px solid var(--line); font-size: 0.85rem; color: var(--ink-soft); text-align: center; font-weight: 600; }
+.login-footer { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; font-size: 0.8rem; color: var(--ink-muted); }
+
+@media (max-width: 800px) {
+  .admin-topbar-sub { display: none; }
+  .profile-name { max-width: 7rem; }
+}

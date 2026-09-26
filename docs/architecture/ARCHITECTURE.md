@@ -120,24 +120,24 @@ sequenceDiagram
   actor Adm as Administrator
   participant UI as /admin/login
   participant FA as Firebase Authentication
-  participant Fn as recordAdminLoginEvent
+  participant Fn as recordStaffLoginEvent
   participant R as Firestore rules
-  participant U as updateServiceRequestAdmin
+  participant U as updateServiceRequestStaff
   participant DB as Firestore
 
   Adm->>UI: email + password
   UI->>FA: signInWithEmailAndPassword
   FA-->>UI: ID token (custom claim role=admin)
-  UI->>Fn: recordAdminLoginEvent(success)
-  Fn->>DB: verify claim + active users/{uid}; audit ADMIN_LOGIN_SUCCESS/FAILURE
+  UI->>Fn: recordStaffLoginEvent(success)
+  Fn->>DB: verify claim + active matching users/{uid}; stamp lastLoginAt; audit STAFF_LOGIN_SUCCESS/FAILURE
   Fn-->>UI: {authorized}
   Note over UI: non-admins are signed straight back out
   UI->>R: read serviceRequests (dashboard)
-  R->>DB: isAdmin()? claim AND active profile
+  R->>DB: isStaff()? claim AND active matching profile
   DB-->>UI: documents
   Adm->>UI: change status / add note
   UI->>U: httpsCallable({requestId, status, note})
-  U->>U: requireAdmin, validate, check transition
+  U->>U: requireStaff, validate, check transition
   U->>DB: TRANSACTION: update record + status history + audit
 ```
 
@@ -148,7 +148,7 @@ sequenceDiagram
 | Claude API key | Firebase Secret Manager (`ANTHROPIC_API_KEY`), bound only to `askOfficeLume`. Never in Vite variables or the browser bundle. |
 | AI cannot mutate anything | Provider gets text only; no tools. All writes are done by controller code after the response is validated. |
 | Client writes | **None.** `firestore.rules` denies every client write; all mutations are callable functions. |
-| Admin identity | `role: "admin"` custom claim (set only by Admin SDK script) **and** active `users/{uid}` profile. Checked in rules and in `requireAdmin`. |
+| Staff / admin identity | `role: "staff"\|"admin"` custom claim (Admin SDK only) **and** an active `users/{uid}` profile whose role matches. Checked in rules and in `requireStaff` / `requireAdmin`. |
 | Instant revocation | Set `users/{uid}.active=false` (or run the script with `--revoke`); no waiting for token expiry. |
 | Abuse | Per-caller (hashed IP) Firestore rate limits, honeypot fields, input length limits, markup rejection. |
 | Data minimisation | Chat logs and text sent to Claude have emails/phone numbers redacted; audit metadata is allow-listed and contains no contact details. |
@@ -159,12 +159,12 @@ See [SECURITY.md](./SECURITY.md) for the rules strategy in detail.
 
 | Collection | Written by | Readable by | Notes |
 |---|---|---|---|
-| `users/{uid}` | admin script | the user themself | `{displayName, email, role, active, createdAt, updatedAt}` - no passwords |
+| `users/{uid}` | staff-management functions / `create-admin` script | the user themself; admins read all | `{uid, displayName, email, role: staff\|admin, active, createdAt, updatedAt, lastLoginAt}` - no passwords |
 | `knowledgeBase/{id}` | `saveKnowledgeArticleAdmin` | admins | `{title, category, content, active, ...}`; only `active` articles feed the AI |
-| `serviceRequests/{id}` | `submitServiceRequest`, `updateServiceRequestAdmin` | admins | `requestNumber` `SR-YYYY-NNNNNN`, status, `statusHistory[]`, `adminNotes[]` |
-| `escalations/{id}` | `submitEscalation`, `updateEscalationAdmin` | admins | `escalationNumber` `ESC-YYYY-NNNNNN`, reason, status, notes |
+| `serviceRequests/{id}` | `submitServiceRequest`, `updateServiceRequestStaff` | staff + admins | `requestNumber` `SR-YYYY-NNNNNN`, status, `statusHistory[]`, `adminNotes[]` |
+| `escalations/{id}` | `submitEscalation`, `updateEscalationStaff` | staff + admins | `escalationNumber` `ESC-YYYY-NNNNNN`, reason, status, notes |
 | `chatSessions/{id}/messages/{id}` | `askOfficeLume` | admins | role, content (PII redacted), supported, requiresEscalation, category |
-| `auditLogs/{id}` | all functions | admins | `{eventType, actorType, actorId, targetType, targetId, action, metadata, timestamp}` |
+| `auditLogs/{id}` | all functions | admins | `{eventType, actorType, actorUid, actorEmail?, actorRole?, targetType, targetId, action, metadata, timestamp}` |
 | `counters/*`, `rateLimits/*` | functions | nobody | server-internal |
 
 Reference numbers are allocated inside the same Firestore transaction that creates the record, so they are unique and gap-free.
@@ -176,7 +176,11 @@ Reference numbers are allocated inside the same Firestore transaction that creat
 | `askOfficeLume` | public | AI receptionist answer |
 | `submitServiceRequest` | public | create service request |
 | `submitEscalation` | public | create human-help request |
-| `recordAdminLoginEvent` | public (failure) / admin (success) | audit sign-in outcome, confirm admin status |
-| `updateServiceRequestAdmin` | admin | status transition and notes |
-| `updateEscalationAdmin` | admin | status transition and notes |
+| `recordStaffLoginEvent` | public (failure) / staff (success) | audit sign-in outcome, confirm role, stamp `lastLoginAt` |
+| `recordStaffLogoutEvent` | staff | audit sign-out |
+| `updateServiceRequestStaff` | staff, admin | status transition and notes |
+| `updateEscalationStaff` | staff, admin | status transition and notes |
 | `saveKnowledgeArticleAdmin` | admin | create / update / deactivate knowledge |
+| `createStaffUserAdmin` | admin | provision a staff account (claim + profile, no password disclosed) |
+| `updateStaffRoleAdmin` | admin | change role (blocks self-change and last-admin removal) |
+| `setStaffActiveStatusAdmin` | admin | deactivate / reactivate (disables login, revokes sessions) |

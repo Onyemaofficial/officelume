@@ -32,8 +32,10 @@ export async function saveKnowledgeArticle(db: Firestore, request: AdminRequest)
       });
       writeAuditLogInTransaction(db, tx, {
         eventType: 'KNOWLEDGE_CREATED',
-        actorType: 'admin',
-        actorId: admin.uid,
+        actorType: 'staff',
+        actorUid: admin.uid,
+        actorEmail: admin.email,
+        actorRole: admin.role,
         targetType: 'knowledgeArticle',
         targetId: ref.id,
         action: 'create',
@@ -59,8 +61,10 @@ export async function saveKnowledgeArticle(db: Firestore, request: AdminRequest)
     });
     writeAuditLogInTransaction(db, tx, {
       eventType: wasActive && !input.active ? 'KNOWLEDGE_DEACTIVATED' : 'KNOWLEDGE_UPDATED',
-      actorType: 'admin',
-      actorId: admin.uid,
+      actorType: 'staff',
+      actorUid: admin.uid,
+      actorEmail: admin.email,
+      actorRole: admin.role,
       targetType: 'knowledgeArticle',
       targetId: ref.id,
       action: wasActive && !input.active ? 'deactivate' : 'update',

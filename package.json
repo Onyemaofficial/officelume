@@ -18,13 +18,13 @@
     "test:all": "npm test && npm run functions:test && npm run test:rules && npm run test:integration",
     "emulators": "firebase emulators:start --project demo-officelume",
     "seed": "tsx scripts/seed/seed.ts",
-    "admin:create": "tsx scripts/seed/grant-admin.ts",
     "docs:scenarios": "tsx scripts/seed/generate-scenario-doc.ts",
     "ai:evaluate": "tsx scripts/seed/evaluate-ai.ts",
     "deploy": "npm run build && npm run functions:build && firebase deploy",
     "test:rules": "firebase emulators:exec --only firestore --project demo-officelume \"vitest run --config vitest.rules.config.ts\"",
-    "test:integration": "firebase emulators:exec --only firestore --project demo-officelume \"npm --prefix functions run test:integration\"",
-    "smoke": "firebase emulators:exec --only auth,functions,firestore --project demo-officelume \"tsx scripts/smoke-emulator.ts\""
+    "test:integration": "firebase emulators:exec --only auth,firestore --project demo-officelume \"npm --prefix functions run test:integration\"",
+    "smoke": "firebase emulators:exec --only auth,functions,firestore --project demo-officelume \"tsx scripts/smoke-emulator.ts\"",
+    "create-admin": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
     "firebase": "^12.19.0",
@@ -44,7 +44,7 @@
     "eslint": "^10.11.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "firebase-admin": "^14.4.0",
-    "firebase-tools": "^10.1.1",
+    "firebase-tools": "^15.31.0",
     "globals": "^17.12.0",
     "jsdom": "^29.1.1",
     "tsx": "^4.23.15",

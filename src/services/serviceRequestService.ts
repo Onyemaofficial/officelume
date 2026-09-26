@@ -33,11 +33,11 @@ export async function getServiceRequest(id: string): Promise<ServiceRequest> {
   }
 }
 
-/** Admin: change status and/or add an internal note via the audited Cloud Function. */
+/** Staff: change status and/or add an internal note via the audited Cloud Function. */
 export async function updateServiceRequest(input: {
   requestId: string;
   status?: RequestStatus;
   note?: string;
 }): Promise<{ status: RequestStatus; changed: boolean }> {
-  return callFunction('updateServiceRequestAdmin', input);
+  return callFunction('updateServiceRequestStaff', input);
 }

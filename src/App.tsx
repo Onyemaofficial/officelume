@@ -2,7 +2,7 @@ import { Suspense, lazy } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { Spinner } from './components/Spinner';
 import { AuthProvider } from './features/auth/AuthProvider';
-import { RequireAdmin } from './features/auth/RequireAdmin';
+import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { AdminLayout } from './layouts/AdminLayout';
 import { PublicLayout } from './layouts/PublicLayout';
 import { AboutPage } from './pages/AboutPage';
@@ -19,6 +19,7 @@ const RequestDetailPage = lazy(() => import('./pages/admin/RequestDetailPage').t
 const EscalationsPage = lazy(() => import('./pages/admin/EscalationsPage').then((m) => ({ default: m.EscalationsPage })));
 const KnowledgePage = lazy(() => import('./pages/admin/KnowledgePage').then((m) => ({ default: m.KnowledgePage })));
 const AuditPage = lazy(() => import('./pages/admin/AuditPage').then((m) => ({ default: m.AuditPage })));
+const StaffManagementPage = lazy(() => import('./pages/admin/StaffManagementPage').then((m) => ({ default: m.StaffManagementPage })));
 
 export function App() {
   return (
@@ -41,16 +42,21 @@ export function App() {
 
             <Route path="/admin/login" element={<AdminLoginPage />} />
 
-            {/* Every other /admin route requires an authenticated administrator. */}
-            <Route path="/admin" element={<RequireAdmin />}>
+            {/* Staff portal: every route except /admin/login requires a verified staff member. */}
+            <Route path="/admin" element={<ProtectedRoute roles={['staff', 'admin']} />}>
               <Route element={<AdminLayout />}>
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<DashboardPage />} />
                 <Route path="requests" element={<RequestsPage />} />
                 <Route path="requests/:id" element={<RequestDetailPage />} />
                 <Route path="escalations" element={<EscalationsPage />} />
-                <Route path="knowledge" element={<KnowledgePage />} />
-                <Route path="audit" element={<AuditPage />} />
+
+                {/* Administrator-only pages. Staff who type the URL get an access-denied page. */}
+                <Route element={<ProtectedRoute roles={['admin']} />}>
+                  <Route path="knowledge" element={<KnowledgePage />} />
+                  <Route path="users" element={<StaffManagementPage />} />
+                  <Route path="audit" element={<AuditPage />} />
+                </Route>
               </Route>
             </Route>
 

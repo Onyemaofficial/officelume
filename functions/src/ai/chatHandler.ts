@@ -120,7 +120,7 @@ export async function handleChat(
   await writeAuditLog(db, {
     eventType: response.requiresEscalation ? 'AI_RESPONSE_ESCALATED' : 'AI_RESPONSE_GENERATED',
     actorType: 'ai',
-    actorId: provider.name,
+    actorUid: provider.name,
     targetType: 'chatSession',
     targetId: sessionRef.id,
     action: response.requiresEscalation ? 'ai_recommended_escalation' : 'ai_answered',

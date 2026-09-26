@@ -6,6 +6,7 @@ import type {
   KNOWLEDGE_CATEGORIES,
   REQUEST_STATUSES,
   SERVICE_TYPES,
+  STAFF_ROLES,
   TIME_WINDOWS,
 } from './constants';
 
@@ -17,6 +18,7 @@ export type EscalationStatus = (typeof ESCALATION_STATUSES)[number];
 export type KnowledgeCategory = (typeof KNOWLEDGE_CATEGORIES)[number];
 export type AICategory = (typeof AI_CATEGORIES)[number];
 export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number];
+export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export interface KnowledgeArticle {
   id: string;
@@ -44,8 +46,11 @@ export type AuditMetadataValue = string | number | boolean | null;
 
 export interface AuditEventInput {
   eventType: AuditEventType;
-  actorType: 'customer' | 'admin' | 'system' | 'ai';
-  actorId: string;
+  actorType: 'customer' | 'staff' | 'system' | 'ai';
+  actorUid: string;
+  /** Only for authenticated staff/admin actors. */
+  actorEmail?: string | null;
+  actorRole?: StaffRole | null;
   targetType: string;
   targetId: string;
   action: string;

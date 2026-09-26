@@ -22,7 +22,7 @@ export function AuditPage() {
     return (data ?? []).filter((l) => {
       if (eventType && l.eventType !== eventType) return false;
       if (!needle) return true;
-      return [l.actorId, l.targetId, l.action, JSON.stringify(l.metadata)].join(' ').toLowerCase().includes(needle);
+      return [l.actorUid, l.actorEmail ?? '', l.actorRole ?? '', l.targetId, l.action, JSON.stringify(l.metadata)].join(' ').toLowerCase().includes(needle);
     });
   }, [data, eventType, search]);
 
@@ -41,7 +41,7 @@ export function AuditPage() {
       <section className="panel" aria-label="Filters">
         <div className="filter-bar filter-bar-compact" role="search">
           <SelectField label="Event type" placeholder="All events" options={EVENT_OPTIONS} value={eventType} onChange={(e) => setEventType(e.target.value)} />
-          <TextField label="Search" type="search" placeholder="Actor, target, action, details" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <TextField label="Search" type="search" placeholder="Actor email, role, target, action, details" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </section>
 
@@ -67,7 +67,19 @@ export function AuditPage() {
                     <tr key={l.id}>
                       <td data-label="Time">{formatDateTime(l.timestamp)}</td>
                       <td data-label="Event"><code className="event-code">{l.eventType}</code></td>
-                      <td data-label="Actor">{l.actorType}{l.actorId && l.actorId !== 'anonymous' ? ` · ${l.actorId.slice(0, 10)}` : ''}</td>
+                      <td data-label="Actor">
+                        {l.actorEmail ? (
+                          <>
+                            {l.actorEmail}
+                            {l.actorRole && <span className="actor-role"> · {l.actorRole}</span>}
+                          </>
+                        ) : (
+                          <>
+                            {l.actorType}
+                            {l.actorUid && l.actorUid !== 'anonymous' ? ` · ${l.actorUid.slice(0, 10)}` : ''}
+                          </>
+                        )}
+                      </td>
                       <td data-label="Target">{l.targetType} · {l.targetId.slice(0, 12)}</td>
                       <td data-label="Action">{l.action}</td>
                       <td data-label="Details" className="cell-clip cell-wide">

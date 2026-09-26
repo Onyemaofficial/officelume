@@ -32,9 +32,16 @@ export const KNOWLEDGE_CATEGORIES = [
 /** Categories the AI is allowed to report on a response. */
 export const AI_CATEGORIES = ['hours', 'services', 'service_area', 'pricing', 'scheduling', 'emergency', 'other'] as const;
 
+export const STAFF_ROLES = ['staff', 'admin'] as const;
+
 export const AUDIT_EVENT_TYPES = [
-  'ADMIN_LOGIN_SUCCESS',
-  'ADMIN_LOGIN_FAILURE',
+  'STAFF_LOGIN_SUCCESS',
+  'STAFF_LOGIN_FAILURE',
+  'STAFF_LOGOUT',
+  'STAFF_CREATED',
+  'STAFF_ROLE_CHANGED',
+  'STAFF_DEACTIVATED',
+  'STAFF_REACTIVATED',
   'SERVICE_REQUEST_CREATED',
   'SERVICE_REQUEST_STATUS_UPDATED',
   'SERVICE_REQUEST_NOTE_ADDED',

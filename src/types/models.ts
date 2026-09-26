@@ -6,20 +6,11 @@ import type {
   KnowledgeCategory,
   RequestStatus,
   ServiceType,
+  StaffRole,
   TimeWindow,
 } from './domain';
 
 /** Client-side models. Firestore Timestamps are converted to `Date` in the service layer. */
-
-export interface User {
-  uid: string;
-  displayName: string;
-  email: string;
-  role: 'admin';
-  active: boolean;
-  createdAt: Date | null;
-  updatedAt: Date | null;
-}
 
 export interface KnowledgeArticle {
   id: string;
@@ -103,7 +94,9 @@ export interface AuditLog {
   id: string;
   eventType: AuditEventType;
   actorType: string;
-  actorId: string;
+  actorUid: string;
+  actorEmail: string | null;
+  actorRole: StaffRole | null;
   targetType: string;
   targetId: string;
   action: string;

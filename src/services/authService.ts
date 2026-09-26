@@ -1,28 +1,32 @@
+import { FirebaseError } from 'firebase/app';
 import {
+  browserLocalPersistence,
+  browserSessionPersistence,
   onIdTokenChanged,
+  sendPasswordResetEmail,
+  setPersistence,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   type User as FirebaseUser,
 } from 'firebase/auth';
-import { auth } from '../firebase/config';
-import { toAppError, AppError } from '../utils/errors';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase/config';
+import type { AuthIdentity, SessionResult } from '../features/auth/auth.types';
+import { LOGIN_MESSAGES, mapLoginError } from '../features/auth/loginErrors';
+import { evaluateSession } from '../features/auth/session';
+import { AppError, toAppError } from '../utils/errors';
 import { callFunction } from './callables';
+import { mapStaffProfile } from './mappers';
+
+/**
+ * All Firebase Authentication access for the staff portal lives here, so pages and components never
+ * call Firebase Auth directly. Roles come from a custom claim (set only by the Admin SDK) and are
+ * cross-checked against the user's Firestore profile.
+ */
 
 export type LoginFailureReason = 'invalid_credentials' | 'not_authorized' | 'too_many_attempts' | 'other';
 
-export interface AdminIdentity {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
-}
-
-/** The role comes from a custom claim set only by the Admin SDK - never from client-supplied data. */
-export async function readIsAdmin(user: FirebaseUser): Promise<boolean> {
-  const token = await user.getIdTokenResult();
-  return token.claims['role'] === 'admin';
-}
-
-export function toIdentity(user: FirebaseUser): AdminIdentity {
+export function toIdentity(user: FirebaseUser): AuthIdentity {
   return { uid: user.uid, email: user.email, displayName: user.displayName };
 }
 
@@ -31,50 +35,105 @@ export function subscribeToAuth(callback: (user: FirebaseUser | null) => void): 
   return onIdTokenChanged(auth, callback, () => callback(null));
 }
 
-async function recordLoginEvent(outcome: 'success' | 'failure', reason?: LoginFailureReason): Promise<boolean> {
-  try {
-    const result = await callFunction<{ outcome: string; reason?: string }, { authorized: boolean }>(
-      'recordAdminLoginEvent',
-      { outcome, ...(reason ? { reason } : {}) },
-    );
-    return result.authorized;
-  } catch {
-    return false;
-  }
+export function currentUser(): FirebaseUser | null {
+  return auth.currentUser;
 }
 
 /**
- * Sign in with email/password, then have the server confirm the account is an active administrator
- * (and write the audit event). A valid customer/non-admin account is signed straight back out.
+ * Resolve the signed-in user into a verified staff session: read the role claim, load the profile,
+ * and apply the same rule the server and Firestore rules use.
  */
-export async function signInAdmin(email: string, password: string): Promise<void> {
-  try {
-    await signInWithEmailAndPassword(auth, email, password);
-  } catch (error) {
-    const appError = toAppError(error);
-    void recordLoginEvent('failure', appError.code === 'rate-limited' ? 'too_many_attempts' : 'invalid_credentials');
-    throw appError;
-  }
+export async function loadStaffSession(user: FirebaseUser, forceRefresh = false): Promise<SessionResult> {
+  const token = await user.getIdTokenResult(forceRefresh);
+  const claimRole = token.claims['role'];
+  if (claimRole !== 'staff' && claimRole !== 'admin') return { ok: false, reason: 'no_role' };
 
-  const authorized = await recordLoginEvent('success');
-  if (!authorized) {
-    await firebaseSignOut(auth);
-    throw new AppError('unauthorized', 'This account is not authorized to use the admin area.');
+  try {
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    return evaluateSession(claimRole, snap.exists() ? mapStaffProfile(snap) : null);
+  } catch {
+    // Rules refused the profile read: treat as not authorized.
+    return { ok: false, reason: 'no_profile' };
   }
 }
 
-export async function signOutAdmin(): Promise<void> {
+/** Record a failed attempt (best effort, unauthenticated, server-side rate limited). Never logs credentials. */
+function recordLoginFailure(reason: LoginFailureReason): void {
+  void callFunction('recordStaffLoginEvent', { outcome: 'failure', reason }).catch(() => undefined);
+}
+
+/**
+ * Sign in with email/password, then have the server confirm the account is an active staff member
+ * or administrator (and write the audit event / lastLoginAt). Any account that fails the check is
+ * signed straight back out.
+ */
+export async function signInStaff(email: string, password: string, remember: boolean): Promise<void> {
+  // "Remember me" -> survive browser restarts; otherwise the session ends with the tab.
+  await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
+
+  let user: FirebaseUser;
+  try {
+    user = (await signInWithEmailAndPassword(auth, email, password)).user;
+  } catch (error) {
+    const mapped = mapLoginError(error);
+    recordLoginFailure(mapped.code === 'rate-limited' ? 'too_many_attempts' : 'invalid_credentials');
+    throw mapped;
+  }
+
+  try {
+    await user.getIdToken(true); // pick up the latest custom claims
+    const result = await callFunction<{ outcome: string }, { authorized: boolean }>('recordStaffLoginEvent', { outcome: 'success' });
+    if (!result.authorized) throw new AppError('unauthorized', LOGIN_MESSAGES.notAuthorized);
+  } catch (error) {
+    await firebaseSignOut(auth).catch(() => undefined);
+    if (error instanceof AppError && (error.code === 'unavailable' || error.code === 'offline')) {
+      throw new AppError(error.code, LOGIN_MESSAGES.network);
+    }
+    if (error instanceof AppError && error.message === LOGIN_MESSAGES.notAuthorized) throw error;
+    // Permission errors from the server mean "not staff"; anything else is a generic failure.
+    const mapped = toAppError(error);
+    throw mapped.code === 'unauthorized' || mapped.code === 'session-expired'
+      ? new AppError('unauthorized', LOGIN_MESSAGES.notAuthorized)
+      : new AppError('unknown', LOGIN_MESSAGES.unknown);
+  }
+}
+
+/** Record the sign-out (best effort), then end the Firebase session. */
+export async function signOutStaff(): Promise<void> {
+  try {
+    await callFunction('recordStaffLogoutEvent', {});
+  } catch {
+    // An audit failure must never trap someone in a signed-in state.
+  }
   await firebaseSignOut(auth);
 }
 
-/** Force a token refresh so a newly granted (or revoked) admin claim takes effect. */
-export async function refreshSession(): Promise<boolean> {
-  const user = auth.currentUser;
-  if (!user) return false;
+/**
+ * Password-reset email for the staff login page. Always resolves the same way for unknown, non-staff
+ * and staff addresses so the response cannot be used to discover accounts. Only a genuine
+ * connectivity failure is reported.
+ */
+export async function requestPasswordReset(email: string): Promise<void> {
   try {
-    await user.getIdToken(true);
-    return await readIsAdmin(user);
-  } catch {
-    return false;
+    await sendPasswordResetEmail(auth, email);
+  } catch (error) {
+    if (error instanceof FirebaseError && error.code === 'auth/network-request-failed') {
+      throw new AppError('unavailable', LOGIN_MESSAGES.network);
+    }
+    // user-not-found, invalid-email, too-many-requests, ...: indistinguishable to the caller.
   }
+}
+
+/** Password-setup email for a newly provisioned staff member (errors are reported to the admin). */
+export async function sendPasswordSetupEmail(email: string): Promise<void> {
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch (error) {
+    throw toAppError(error);
+  }
+}
+
+/** Force a token refresh so a newly granted (or revoked) role claim takes effect. */
+export async function refreshToken(): Promise<void> {
+  await auth.currentUser?.getIdToken(true);
 }

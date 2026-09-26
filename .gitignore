@@ -37,3 +37,10 @@ Thumbs.db
 
 # local tooling
 .claude/
+
+# service-account / Admin SDK credentials - never commit
+*service-account*.json
+*serviceaccount*.json
+firebase-adminsdk*.json
+*-firebase-adminsdk-*.json
+credentials.json

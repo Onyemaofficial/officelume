@@ -30,5 +30,5 @@ export async function updateEscalation(input: {
   status?: EscalationStatus;
   note?: string;
 }): Promise<{ status: EscalationStatus; changed: boolean }> {
-  return callFunction('updateEscalationAdmin', input);
+  return callFunction('updateEscalationStaff', input);
 }

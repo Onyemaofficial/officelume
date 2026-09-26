@@ -29,7 +29,7 @@ Customer inquiry → AI analyses the question → searches the approved HVAC kno
 5. [Firebase project setup](#firebase-project-setup) (Firestore, Authentication, Functions, Hosting)
 6. [Anthropic Claude setup](#anthropic-claude-setup)
 7. [Environment variables](#environment-variables)
-8. [Create the first admin](#create-the-first-admin) · [Seed the knowledge base](#seed-the-knowledge-base)
+8. [Staff authentication](#staff-authentication) (roles, first admin, staff accounts) · [Seed the knowledge base](#seed-the-knowledge-base)
 9. [Tests](#tests) · [Build](#build) · [Deploy](#deploy)
 10. [Security configuration](#security-configuration)
 11. [Known limitations](#known-limitations) · [Future enhancements](#future-enhancements)
@@ -60,7 +60,7 @@ officelume/
 ├── src/                       React app
 │   ├── components/            Reusable UI (Button, Field, Alert, StatusBadge, DataState…)
 │   ├── features/
-│   │   ├── auth/              AuthProvider, RequireAdmin route guard
+│   │   ├── auth/              AuthProvider, role-aware ProtectedRoute, session rule, login error mapping
 │   │   ├── chat/              Floating AI receptionist widget (ChatWidget, ChatWidgetProvider, ChatPanel, useChat)
 │   │   ├── escalations/       Human-help form
 │   │   ├── serviceRequests/   Request form + admin filters
@@ -74,12 +74,13 @@ officelume/
 │   ├── src/
 │   │   ├── ai/                orchestrator, safety guards, retrieval, prompt, parser, grounding, Claude + mock providers
 │   │   ├── serviceRequests/  escalations/  knowledge/   controlled business operations
-│   │   ├── auth/              requireAdmin + admin login audit
+│   │   ├── auth/              requireStaff/requireAdmin, staff sign-in audit, staff account management
 │   │   ├── audit/             audit logging
 │   │   └── shared/            config, validation, rate limit, numbering, status rules, errors
 │   └── test/                  unit tests + emulator integration tests
 ├── scripts/
-│   ├── seed/                  seed.ts · grant-admin.ts · knowledgeBase.ts · evaluate-ai.ts · generate-scenario-doc.ts
+│   ├── create-admin.ts        bootstrap / revoke a staff or admin account (Admin SDK)
+│   ├── seed/                  seed.ts · knowledgeBase.ts · evaluate-ai.ts · generate-scenario-doc.ts
 │   └── smoke-emulator.ts      end-to-end emulator smoke test
 ├── test/rules/                Firestore security-rules tests
 ├── docs/                      architecture · requirements · testing (66 AI scenarios)
@@ -122,7 +123,7 @@ $env:FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080"
 $env:FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099"
 npm run seed -- --with-samples
 $env:ADMIN_INITIAL_PASSWORD = "pick-a-long-local-password"   # emulator only; not stored anywhere
-npm run admin:create -- --email admin@example.com --name "Local Admin"
+npm run create-admin -- --email admin@example.com --name "Local Admin"
 Remove-Item Env:ADMIN_INITIAL_PASSWORD
 ```
 
@@ -200,28 +201,139 @@ Cost/latency guidance: answers are short and context is limited to ≤ 4 approve
 | `VITE_USE_EMULATORS` | shell / `.env.local` | `true` → use local emulators |
 | `ANTHROPIC_API_KEY` | **Secret Manager** (prod) / `functions/.secret.local` (emulator) | Claude credential - **server-side only** |
 | `AI_PROVIDER`, `CLAUDE_MODEL` | Functions params | `claude`\|`mock`, model id |
-| `ADMIN_INITIAL_PASSWORD` | shell (one-off) | Only if you let `admin:create` create an Auth user |
+| `VITE_EMULATOR_PROJECT_ID` | shell / `.env.local` | Optional. Project id used in emulator mode (default `demo-officelume`); must match `firebase emulators:start --project` |
+| `ADMIN_INITIAL_PASSWORD` | shell (one-off) | Only for non-interactive `create-admin` when it must create the Auth user (otherwise you are prompted) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | shell | Optional path to a service-account file **outside the repo**, for `create-admin` / `seed` (or use `gcloud auth application-default login`) |
 
 Only `.env.example` is committed; `.env*` files and secret files are git-ignored.
 
 ---
 
-## Create the first admin
+## Staff authentication
 
-Authorization = a **`role: admin` custom claim** + an **active `users/{uid}` profile**. Only the Admin SDK can set either, so browser code can never grant itself access.
+The staff portal (routes under `/admin`) is protected by **Firebase Authentication** plus a role model enforced in four places: the UI, the route guard, Firestore Security Rules, and Cloud Functions. There is **no public staff registration** - a customer cannot create a staff account.
 
-1. Console → Authentication → **Add user** (email + a strong password).
-2. Give that account admin rights using Application Default Credentials:
+```
+Staff opens /admin/login → email + password → Firebase Authentication validates the credentials
+  → fresh ID token is fetched and the `role` custom claim is read
+  → recordStaffLoginEvent (Cloud Function) verifies: claim is staff/admin AND users/{uid} exists,
+    is active, and its role matches the claim  → stamps lastLoginAt + writes the audit event
+  → authorized: dashboard   |   anything else: signed out immediately, generic "not authorized" message
+```
 
-   ```powershell
-   gcloud auth application-default login          # once
-   npm run admin:create -- --email you@example.com --project <project-id> --yes
-   ```
+### Roles
 
-   Sign out/in if the user was already signed in.
-3. Revoke later: `npm run admin:create -- --email you@example.com --revoke --project <project-id> --yes` (sets `active:false`, removes the claim, revokes tokens - access ends immediately).
+| | **staff** | **admin** |
+|---|---|---|
+| Dashboard, service requests (view + update status/notes), escalations (view + update status/notes) | ✅ | ✅ |
+| Knowledge base (create / edit / deactivate) | ❌ | ✅ |
+| Staff management (`/admin/users`): create, change role, deactivate/reactivate | ❌ | ✅ |
+| Audit log | ❌ | ✅ |
 
-No password is ever hard-coded; the script refuses to touch a live project without `--yes`.
+The portal keeps the existing `/admin/*` route convention (there is deliberately no duplicate `/staff/*` tree):
+
+| Route | Access |
+|---|---|
+| `/admin/login` | public (the only public staff route) |
+| `/admin/dashboard`, `/admin/requests`, `/admin/requests/:id`, `/admin/escalations` | staff + admin |
+| `/admin/knowledge`, `/admin/users`, `/admin/audit` | admin only (staff who type the URL see **Access denied**) |
+
+### How authorization works
+
+* **The role is a Firebase custom claim** (`role: "staff" | "admin"`) set only by the Admin SDK. A browser can never set or change it.
+* **`users/{uid}`** holds non-sensitive profile metadata: `uid, displayName, email, role, active, createdAt, updatedAt, lastLoginAt`. **Passwords, password hashes, and tokens are never stored** - Firebase Authentication owns credentials.
+* A role is honoured only when **the claim and an active profile agree**. Set `active:false` and access ends immediately (rules and functions refuse the profile even though the token is still valid); change a role and any stale token fails closed until the person signs in again.
+* Every change goes through a Cloud Function. **No collection is client-writable**, so a staff member cannot promote themselves - `users/{uid}.role` and `.active` cannot be written from a browser at all.
+* Guards: you cannot change your own role or deactivate yourself, and the last active administrator can never be removed or demoted.
+
+### Firebase Console setup
+
+1. **Authentication → Sign-in method → enable Email/Password.** Leave "Email link" off. There is no sign-up UI in the app.
+2. **Authentication → Settings → User actions**: consider disabling "Enable create (sign-up)" so nobody can self-register through the client SDK.
+3. **Authentication → Templates → Password reset**: customise the sender name/subject (optional). The same email is used for "Forgot password" and for new-staff password setup.
+4. Recommended: enable multi-factor authentication for administrator accounts.
+
+### Create the first administrator
+
+OfficeLume has no registration page, so the first admin is created with the Firebase Admin SDK through `scripts/create-admin.ts`. It creates (or finds) the Auth user, sets `role: "admin"`, and writes the `users/{uid}` profile with `active: true`. **Nothing is hard-coded; the password is never a command-line argument.**
+
+```powershell
+gcloud auth application-default login       # Admin SDK credentials (once); never commit a key file
+npm run create-admin -- --email you@example.com --name "Your Name" --project <project-id> --yes
+```
+
+* **Password**: you are prompted in the terminal (input hidden, asked twice, minimum 12 characters). For non-interactive use, set `ADMIN_INITIAL_PASSWORD` for that single command. If the Auth user already exists (e.g. created in the Console) no password is asked - it is simply granted the role.
+* **Credentials**: Application Default Credentials (above), or a service-account file kept **outside** the repository and referenced by `GOOGLE_APPLICATION_CREDENTIALS`. `.gitignore` already excludes `*service-account*.json`, `*firebase-adminsdk*.json`, and `.env*`.
+* `--role staff` provisions a staff member instead; `--revoke` removes access (role claim removed, profile deactivated, login disabled, sessions revoked).
+* The script refuses to modify a live project without `--yes`.
+
+### Create staff (administrators)
+
+Sign in as an admin → **Staff management → Add staff member** (full name, email, role). The `createStaffUserAdmin` function creates the Firebase user with a **random password nobody ever sees**, sets the role claim, writes the profile, and audits it. The browser then sends Firebase's **password-setup email**, so the employee chooses their own password. If the email fails, the account still exists and the page offers **Resend setup email** (also available per row). Admins can also **change role**, **deactivate**, and **reactivate** (which disables the Firebase login and revokes sessions).
+
+### Password reset
+
+**Forgot password?** on the login page calls Firebase `sendPasswordResetEmail`. The page always answers *"If an eligible account exists for that email address, a password reset email has been sent."* - identical for unknown, non-staff, and staff addresses - so it cannot be used to discover accounts.
+
+### Session, sign-out, errors
+
+* **Remember me** → local persistence (survives closing the browser); otherwise session persistence (ends with the tab). A page refresh waits for Firebase to restore the session before deciding anything (no premature redirect).
+* **Sign Out** (account menu, top right) records a `STAFF_LOGOUT` audit event, calls Firebase `signOut()`, and returns to `/admin/login`.
+* Raw Firebase errors are never shown: wrong password/unknown email → *"Email or password is incorrect."*; throttling → *"Too many unsuccessful sign-in attempts…"*; offline → *"Unable to connect…"*; non-staff or inactive profile → *"This account is not authorized to access the OfficeLume staff portal."*; disabled account → *"This account is currently inactive. Contact an administrator."*
+
+### Firestore rules and Cloud Functions
+
+| Collection | staff | admin | everyone else |
+|---|---|---|---|
+| `serviceRequests`, `escalations` | read | read | none |
+| `knowledgeBase`, `chatSessions`, `auditLogs` | none | read | none |
+| `users` | own profile | all profiles | none |
+| every collection - **writes** | none | none | none (all writes via Cloud Functions) |
+
+| Function | Who | Purpose |
+|---|---|---|
+| `recordStaffLoginEvent` / `recordStaffLogoutEvent` | public (failures) / staff | verify + audit sign-in, stamp `lastLoginAt`, audit sign-out |
+| `updateServiceRequestStaff`, `updateEscalationStaff` | staff, admin | status transitions and notes |
+| `saveKnowledgeArticleAdmin` | admin | knowledge create/update/deactivate |
+| `createStaffUserAdmin`, `updateStaffRoleAdmin`, `setStaffActiveStatusAdmin` | admin | provision staff, change role, deactivate/reactivate |
+
+Audit events: `STAFF_LOGIN_SUCCESS`, `STAFF_LOGIN_FAILURE`, `STAFF_LOGOUT`, `STAFF_CREATED`, `STAFF_ROLE_CHANGED`, `STAFF_DEACTIVATED`, `STAFF_REACTIVATED`, `SERVICE_REQUEST_STATUS_UPDATED`, `ESCALATION_STATUS_UPDATED`, `KNOWLEDGE_UPDATED` (plus the customer/AI events). Each records `eventType, actorUid, actorEmail, actorRole, targetType, targetId, action, metadata, timestamp` - never passwords, tokens, or customer contact details.
+
+### Local development with the emulators
+
+`VITE_USE_EMULATORS=true` makes the app use the **emulator project (`demo-officelume`) and ignore any real values in `.env.local`**, so local testing cannot touch production. Test accounts exist only in the emulator:
+
+```powershell
+npm run functions:build ; npm run emulators               # terminal 1 (Auth :9099, Firestore :8080, Functions :5001, UI :4000)
+
+$env:FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080" ; $env:FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099"
+npm run seed -- --with-samples                            # terminal 2: knowledge base + sample requests
+npm run create-admin -- --email admin@example.test --name "Local Admin"                 # prompts for a password
+npm run create-admin -- --email staff@example.test --name "Local Staff" --role staff
+
+$env:VITE_USE_EMULATORS = "true" ; npm run dev             # terminal 3 → http://localhost:5173/admin/login
+```
+
+Password-reset and setup emails are not delivered in the emulator - open the Emulator UI (http://localhost:4000 → Authentication) to see the generated link.
+
+### Testing the staff authentication
+
+`npm test` (login page, provider, route protection, role-based navigation, staff management, sign-in service), `npm run functions:test` (authorization + staff rules), `npm run test:rules` (39 rules tests), `npm run test:integration` (staff functions against the Auth+Firestore emulators), `npm run smoke` (end-to-end over real HTTP). See [`docs/testing/TESTING.md`](docs/testing/TESTING.md).
+
+### Production deployment checklist
+
+1. Enable Email/Password sign-in; consider disabling client sign-up (above).
+2. `npm run deploy` (rules, functions, hosting) - then `npm run create-admin -- … --yes` for the first admin.
+3. Add your hosting domain under **Authentication → Settings → Authorized domains**.
+4. Enable App Check and administrator MFA (see [`docs/architecture/SECURITY.md`](docs/architecture/SECURITY.md)).
+
+### Security limitations to be aware of
+
+* Not yet run against a live Firebase project; verified with the emulator suite and a real-browser run against the emulators.
+* "Remember me" uses browser storage, as with any Firebase web sign-in; use shared computers with care and sign out.
+* Login failures are rate limited per hashed IP; Firebase also throttles repeated failures per account. App Check is recommended but not enabled.
+* Role changes take full effect at the person's next sign-in (their sessions are revoked); until then stale tokens are refused rather than trusted.
+* Custom-claim authorization needs one Firestore read per privileged request (to check the active profile) - deliberate, so revocation is immediate.
 
 ## Seed the knowledge base
 
@@ -264,15 +376,15 @@ npx firebase use <project-id>
 npx firebase functions:secrets:set ANTHROPIC_API_KEY     # first time
 npm run deploy                                            # web + functions + rules + hosting
 npm run seed -- --project <project-id> --yes              # first time
-npm run admin:create -- --email you@example.com --project <project-id> --yes   # first time
+npm run create-admin -- --email you@example.com --name "Your Name" --project <project-id> --yes   # first time (prompts for a password)
 ```
 
 ---
 
 ## Security configuration
 
-* **Firestore rules**: deny by default; no client writes; admin-only reads; admin = claim **and** active profile. Details: [`docs/architecture/SECURITY.md`](docs/architecture/SECURITY.md).
-* **Functions**: every admin callable calls `requireAdmin()`; public callables validate, rate limit, and audit.
+* **Firestore rules**: deny by default; no client writes; staff read the work queue, admins read everything else; a role = matching claim **and** active profile. Details: [`docs/architecture/SECURITY.md`](docs/architecture/SECURITY.md).
+* **Functions**: every staff callable calls `requireStaff()` and every admin-only callable `requireAdmin()`; public callables validate, rate limit, and audit.
 * **Secrets**: Secret Manager only; nothing sensitive in the bundle. Scan yourself with `grep -rn "sk-ant" . --exclude-dir=node_modules --exclude-dir=dist` (expected: only test strings and docs).
 * **Recommended before real use**: App Check, restrictive CORS, admin MFA, billing alerts (see SECURITY.md).
 
@@ -282,7 +394,9 @@ npm run admin:create -- --email you@example.com --project <project-id> --yes   #
 
 * **AI quality against live Claude has not been measured in this repository.** The 66-scenario evaluation ran against the deterministic mock; run `npm run ai:evaluate -- --provider claude` and record the result for your report. Live latency vs. the ~5 s target is likewise unmeasured.
 * **Not deployed or tested against a real Firebase project.** Verification was done with the emulator suite (rules, handlers, end-to-end HTTP calls) - not against production Firebase, real Secret Manager, or the real Claude API.
-* **Admin UI was verified by component tests and screenshots of the public pages, not by an automated browser session against live admin data.** The admin functions and rules behind it are tested end to end.
+* **The staff portal was verified in a real browser against the Firebase emulators** (sign-in, roles, access denied, refresh, sign-out, staff management, audit log), plus component tests - but that browser run is a manual script, not part of `npm run test:all`.
+* **Emulator start-up on slow machines**: if the Functions emulator reports "Cannot determine backend specification. Timeout", set `FUNCTIONS_DISCOVERY_TIMEOUT=60` (PowerShell: `$env:FUNCTIONS_DISCOVERY_TIMEOUT = "60"`) and retry.
+* **Firebase CLI**: use a current `firebase-tools` (15.x). Old CLIs ship a Firestore emulator without aggregation queries (dashboard counters) and without 2nd-gen Functions support.
 * Retrieval is keyword/IDF based (adequate for a small knowledge base); no embeddings.
 * Admin tables load the latest 200 records and filter client-side; no pagination.
 * Rate limiting is per hashed IP and fixed-window; use App Check for stronger bot protection.
@@ -305,10 +419,10 @@ Explicitly **out of scope** for this MVP: voice receptionist, phone integration,
 | Customer can open the app, ask a question, get a grounded answer from Firestore knowledge | ✅ (emulator-verified; mock or Claude provider) |
 | Unsupported questions escalate rather than hallucinate | ✅ tests + 17/17 escalation scenarios |
 | Service request persisted; reference number shown | ✅ |
-| Admin login with Firebase Auth; unauthorized users blocked from admin | ✅ route guard + rules + functions |
-| Admin views requests, updates status, views/updates escalations, manages knowledge | ✅ |
-| Important events in audit logs | ✅ 13 event types |
-| Firestore rules protect privileged data | ✅ 28 emulator tests |
+| Staff/admin login with Firebase Auth; roles; unauthorized and inactive accounts blocked | ✅ route guard + rules + functions (browser-verified on the emulators) |
+| Staff work requests/escalations; admins also manage knowledge, staff accounts, audit log | ✅ |
+| Important events in audit logs | ✅ 18 event types |
+| Firestore rules protect privileged data | ✅ 39 emulator tests |
 | Secrets not in browser code | ✅ server-side key via Secret Manager |
 | Project builds; README explains setup | ✅ |
 | Live Claude call verified | ⏳ needs your API key - see [What you need to provide](#what-you-need-to-provide) |
@@ -318,6 +432,6 @@ Explicitly **out of scope** for this MVP: voice receptionist, phone integration,
 1. A Firebase project (Blaze plan) id → `.firebaserc`, and its **web app config** → `.env.local`.
 2. Enable **Email/Password** sign-in in the Firebase Console.
 3. Your **`ANTHROPIC_API_KEY`** → `npx firebase functions:secrets:set ANTHROPIC_API_KEY`.
-4. Create the admin user in the Console, then run `npm run admin:create`.
+4. Run `npm run create-admin -- --email you@example.com --name "Your Name" --project <id> --yes` (prompts for a password; creates the first administrator).
 5. Optional: Firestore TTL policy on `rateLimits.expiresAt`; App Check.
 # officelume

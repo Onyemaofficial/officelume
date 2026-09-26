@@ -13,18 +13,31 @@ Every functional and non-functional requirement, where it is implemented, and ho
 | FR-05 | Customers submit HVAC service requests | `ServiceRequestForm.tsx` → `submitServiceRequest` | `ServiceRequestForm.test.tsx`, integration, smoke |
 | FR-06 | Unique reference number per service request | `shared/numbering.ts` (`SR-YYYY-NNNNNN`, transactional counter) | `infrastructure.test.ts`, integration (sequential, unique) |
 | FR-07 | Unique reference number per escalation | same (`ESC-YYYY-NNNNNN`) | integration, smoke |
-| FR-08 | Admin authentication before admin data is shown | `RequireAdmin`, `AuthProvider`, Firestore rules, `requireAdmin` | `RequireAdmin.test.tsx`, rules tests, `authorization.test.ts`, smoke |
+| FR-08 | Staff/admin authentication and role checks before staff data is shown | `ProtectedRoute`, `AuthProvider`, `session.ts`, Firestore rules, `requireStaff` / `requireAdmin` | `ProtectedRoute.test.tsx`, `AuthProvider.test.tsx`, `AdminLoginPage.test.tsx`, `authService.test.ts`, rules tests, `authorization.test.ts`, integration, smoke |
 | FR-09 | Admins review requests | `RequestsPage`, `RequestDetailPage`, `DashboardPage` | component/service code; `filters.test.ts` |
-| FR-10 | Admins update request status | `updateServiceRequestAdmin` + `StatusUpdater` | integration (transitions, history, audit), smoke |
-| FR-11 | Admins review and resolve escalations | `EscalationsPage` + `updateEscalationAdmin` | integration |
+| FR-10 | Staff and admins update request status | `updateServiceRequestStaff` + `StatusUpdater` | integration (transitions, history, audit), smoke |
+| FR-11 | Staff and admins review and resolve escalations | `EscalationsPage` + `updateEscalationStaff` | integration |
 | FR-12 | Admins maintain approved HVAC knowledge | `KnowledgePage` + `saveKnowledgeArticleAdmin` (create/update/deactivate) | integration "manages knowledge", smoke |
 | FR-13 | Record important events | `functions/src/audit/audit.ts`; `AuditPage` | integration and smoke assert each event type |
 | FR-14 | Disclose that the receptionist uses AI | hero disclaimer, chat header/disclaimer, "OfficeLume (AI)" labels, privacy notice, About page | `ChatPanel.test.tsx` |
 | FR-15 | Offer human escalation when the AI cannot answer | `escalation-prompt` buttons, "Talk to a person" in the chat header, "Get Human Help" in the site nav and home page, `EscalationForm` (inside the chat widget) | `ChatPanel.test.tsx`, `ChatWidget.test.tsx` |
 
+### Staff authentication (added requirement set)
+
+| Requirement | Implementation | Verification |
+|---|---|---|
+| No public staff registration | no sign-up UI; accounts created by `createStaffUserAdmin` or `scripts/create-admin.ts` | `AdminLoginPage.test.tsx`, browser run |
+| Two roles (staff, admin) via custom claims + active profile | `functions/src/auth/authorization.ts`, `firestore.rules`, `features/auth/session.ts` | `authorization.test.ts`, `session.test.ts`, rules tests |
+| Role-based routes and navigation | `ProtectedRoute`, `AdminLayout` | `ProtectedRoute.test.tsx`, `AdminLayout.test.tsx` |
+| Sign-in: token refresh, claim check, active profile, lastLoginAt, audit | `authService.signInStaff`, `recordStaffLoginEvent` | `authService.test.ts`, integration, smoke |
+| Friendly, non-revealing errors; generic password-reset response | `loginErrors.ts`, `requestPasswordReset` | `loginErrors.test.ts`, `AdminLoginPage.test.tsx` |
+| Remember-me persistence; session restored on refresh | `setPersistence`, `AuthProvider` | `authService.test.ts`, `AuthProvider.test.tsx` |
+| Staff management (create, role, deactivate, reactivate; no self-change, last admin protected) | `staffAdminHandlers.ts`, `staffRules.ts`, `StaffManagementPage` | `authorization.test.ts`, integration, `StaffManagementPage.test.tsx`, smoke |
+| Staff cannot promote themselves | no client writes in rules; admin-only functions | rules tests, integration, smoke |
+
 ### Audit events implemented
 
-`ADMIN_LOGIN_SUCCESS`, `ADMIN_LOGIN_FAILURE`, `SERVICE_REQUEST_CREATED`, `SERVICE_REQUEST_STATUS_UPDATED`, `SERVICE_REQUEST_NOTE_ADDED`, `ESCALATION_CREATED`, `ESCALATION_STATUS_UPDATED`, `ESCALATION_NOTE_ADDED`, `AI_RESPONSE_GENERATED`, `AI_RESPONSE_ESCALATED`, `KNOWLEDGE_CREATED`, `KNOWLEDGE_UPDATED`, `KNOWLEDGE_DEACTIVATED`.
+`STAFF_LOGIN_SUCCESS`, `STAFF_LOGIN_FAILURE`, `STAFF_LOGOUT`, `STAFF_CREATED`, `STAFF_ROLE_CHANGED`, `STAFF_DEACTIVATED`, `STAFF_REACTIVATED`, `SERVICE_REQUEST_CREATED`, `SERVICE_REQUEST_STATUS_UPDATED`, `SERVICE_REQUEST_NOTE_ADDED`, `ESCALATION_CREATED`, `ESCALATION_STATUS_UPDATED`, `ESCALATION_NOTE_ADDED`, `AI_RESPONSE_GENERATED`, `AI_RESPONSE_ESCALATED`, `KNOWLEDGE_CREATED`, `KNOWLEDGE_UPDATED`, `KNOWLEDGE_DEACTIVATED`.
 
 ## Non-functional requirements
 

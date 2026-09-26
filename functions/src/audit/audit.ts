@@ -17,12 +17,17 @@ export function sanitizeAuditMetadata(
   return out;
 }
 
-/** Build the Firestore document for an audit event. Timestamp is always server-assigned. */
+/**
+ * Build the Firestore document for an audit event. The timestamp is always server-assigned.
+ * `actorEmail` / `actorRole` are recorded only for authenticated staff actors (never for customers).
+ */
 export function buildAuditEntry(event: AuditEventInput) {
   return {
     eventType: event.eventType,
     actorType: event.actorType,
-    actorId: event.actorId,
+    actorUid: event.actorUid,
+    ...(event.actorEmail ? { actorEmail: event.actorEmail } : {}),
+    ...(event.actorRole ? { actorRole: event.actorRole } : {}),
     targetType: event.targetType,
     targetId: event.targetId,
     action: event.action,
@@ -43,7 +48,7 @@ export async function writeAuditLog(db: Firestore, event: AuditEventInput): Prom
   }
 }
 
-/** Write an audit event atomically with a business change (used for admin mutations). */
+/** Write an audit event atomically with a business change (used for staff/admin mutations). */
 export function writeAuditLogInTransaction(db: Firestore, tx: Transaction, event: AuditEventInput): void {
   tx.set(db.collection(COLLECTIONS.auditLogs).doc(), buildAuditEntry(event));
 }
