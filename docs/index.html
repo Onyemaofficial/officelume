@@ -65,7 +65,7 @@
   <div class="wrap">
     <div class="brand"><span class="dot"></span> OfficeLume</div>
     <h1>An AI-assisted digital front office for small HVAC businesses</h1>
-    <p class="tagline">A capstone project (MSIT 5910, University of the People) that answers routine customer questions from an approved knowledge base, captures service requests, and escalates anything it can't confidently handle to a human — with no path for the AI to invent a price, a promise, or an appointment.</p>
+    <p class="tagline">A capstone project (MSIT 5910, University of the People) that answers routine customer questions from an approved knowledge base, captures service requests, and escalates anything it can't confidently handle to a human with no path for the AI to invent a price, a promise, or an appointment.</p>
     <div class="cta-row">
       <a class="btn btn-primary" href="https://github.com/Onyemaofficial/officelume" target="_blank" rel="noopener">View source on GitHub</a>
       <a class="btn btn-secondary" href="https://github.com/Onyemaofficial/officelume/tags" target="_blank" rel="noopener">Release tags</a>
@@ -84,11 +84,11 @@
 
   <section>
     <h2>The problem</h2>
-    <p class="section-sub">Small, appointment-based service businesses — HVAC, plumbing, and similar trades — often have no dedicated front-office staff. The owner answers calls, replies to messages, and keeps the schedule while also doing the job itself, which leads to missed leads and inconsistent customer experience.</p>
+    <p class="section-sub">Small, appointment-based service businesses HVAC, plumbing, and similar trades — often have no dedicated front-office staff. The owner answers calls, replies to messages, and keeps the schedule while also doing the job itself, which leads to missed leads and inconsistent customer experience.</p>
     <div class="card-grid">
       <div class="card"><h3>Goal</h3><p>Automate routine, answerable questions and request capture, while keeping a human in the loop for anything the system can't confidently handle.</p></div>
       <div class="card"><h3>Non-goal</h3><p>Replace human judgment. The system is designed to escalate rather than guess whenever it lacks approved information.</p></div>
-      <div class="card"><h3>Scope</h3><p>Single-pilot HVAC business, text-only chat, service-request capture, role-gated staff admin — voice, CRM, and multi-tenant support are explicitly out of scope.</p></div>
+      <div class="card"><h3>Scope</h3><p>Single-pilot HVAC business, text-only chat, service-request capture, role-gated staff admin voice, CRM, and multi-tenant support are explicitly out of scope.</p></div>
     </div>
   </section>
 
@@ -99,7 +99,7 @@
       <img src="assets/architecture.png" alt="OfficeLume system architecture diagram: presentation, application, and data layers">
       <figcaption>Twelve Cloud Functions across four trust tiers, nine Firestore collections, and a dual claim+profile authorization check that fails closed.</figcaption>
     </figure>
-    <div class="note">The AI module is deliberately read-only — it can answer or escalate, but has no authority to create a booking. An earlier design gave it direct tool-calling access to do so; that was removed during implementation in response to OWASP's "excessive agency" risk category for LLM applications.</div>
+    <div class="note">The AI module is deliberately read-only, it can answer or escalate, but has no authority to create a booking. An earlier design gave it direct tool-calling access to do so; that was removed during implementation in response to OWASP's "excessive agency" risk category for LLM applications.</div>
   </section>
 
   <section>
@@ -123,7 +123,7 @@
 
   <section>
     <h2>Measured results</h2>
-    <p class="section-sub">Evaluated at four independent testing levels — unit, Firestore rules, integration, and acceptance-style smoke checks over the real HTTPS callable protocol — plus a 66-scenario correctness and escalation evaluation.</p>
+    <p class="section-sub">Evaluated at four independent testing levels unit, Firestore rules, integration, and acceptance-style smoke checks over the real HTTPS callable protocol — plus a 66-scenario correctness and escalation evaluation.</p>
     <div class="shot-grid">
       <figure>
         <img src="assets/chart-latency.png" alt="Bar chart of Cloud Function warm-average response latency">
@@ -152,7 +152,7 @@
       <li>Formal functional &amp; non-functional requirements (FR-01–FR-15, NFR-01–NFR-08), each traced to its implementing module and verifying test suite</li>
       <li>Two-branch Git Flow with four annotated milestone tags (v0.1.0 → v1.0.0)</li>
       <li>Deny-by-default Firestore rules requiring both a Firebase Auth custom claim and a live, matching Firestore profile</li>
-      <li>Server-side-only AI calls — the client never holds or sends the Anthropic API key, which lives in Firebase Secret Manager</li>
+      <li>Server-side-only AI calls the client never holds or sends the Anthropic API key, which lives in Firebase Secret Manager</li>
       <li>Documented, honest limitations: no real Firebase deployment yet, live-Claude latency unmeasured, no App Check</li>
     </ul>
   </section>
