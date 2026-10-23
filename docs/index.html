@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OfficeLume — AI-Assisted Digital Front Office</title>
+<meta name="description" content="OfficeLume: an AI-assisted digital front office for small HVAC service businesses. MSIT 5910 capstone project by Emeka Joseph Onyema.">
+<style>
+  :root {
+    --bg: #ffffff; --bg-alt: #f7f9fc; --ink: #0f172a; --ink-soft: #475569;
+    --accent: #2563eb; --accent-soft: #eef4ff; --border: #e2e8f0; --card: #ffffff;
+    --good: #16a34a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b1120; --bg-alt: #0f172a; --ink: #e2e8f0; --ink-soft: #94a3b8;
+      --accent: #60a5fa; --accent-soft: #11203f; --border: #1e293b; --card: #0f172a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b1120; --bg-alt: #0f172a; --ink: #e2e8f0; --ink-soft: #94a3b8;
+    --accent: #60a5fa; --accent-soft: #11203f; --border: #1e293b; --card: #0f172a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+  header.hero { background: linear-gradient(180deg, var(--accent-soft), var(--bg)); border-bottom: 1px solid var(--border); padding: 56px 0 40px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; margin-bottom: 28px; }
+  .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+  h1 { font-size: clamp(28px, 4.5vw, 44px); margin: 0 0 10px; letter-spacing: -0.02em; }
+  .tagline { font-size: 18px; color: var(--ink-soft); max-width: 640px; margin: 0 0 24px; }
+  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 28px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; border: 1px solid var(--border); }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-secondary { background: var(--card); color: var(--ink); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .stat .num { font-size: 24px; font-weight: 800; color: var(--accent); }
+  .stat .label { font-size: 12.5px; color: var(--ink-soft); }
+  section { padding: 44px 0; border-bottom: 1px solid var(--border); }
+  section:last-of-type { border-bottom: none; }
+  h2 { font-size: 24px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .section-sub { color: var(--ink-soft); margin: 0 0 24px; max-width: 640px; }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .card h3 { margin: 0 0 8px; font-size: 16px; }
+  .card p { margin: 0; color: var(--ink-soft); font-size: 14.5px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  figure img { display: block; width: 100%; height: auto; }
+  figcaption { padding: 10px 14px; font-size: 13px; color: var(--ink-soft); border-top: 1px solid var(--border); }
+  .shot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; }
+  .req-list { margin: 0; padding-left: 20px; color: var(--ink-soft); font-size: 14.5px; }
+  .req-list li { margin-bottom: 6px; }
+  footer { padding: 36px 0 60px; color: var(--ink-soft); font-size: 13.5px; }
+  footer a { color: var(--accent); }
+  a { color: var(--accent); }
+  .note { font-size: 13px; color: var(--ink-soft); background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span> OfficeLume</div>
+    <h1>An AI-assisted digital front office for small HVAC businesses</h1>
+    <p class="tagline">A capstone project (MSIT 5910, University of the People) that answers routine customer questions from an approved knowledge base, captures service requests, and escalates anything it can't confidently handle to a human — with no path for the AI to invent a price, a promise, or an appointment.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/Onyemaofficial/officelume" target="_blank" rel="noopener">View source on GitHub</a>
+      <a class="btn btn-secondary" href="https://github.com/Onyemaofficial/officelume/tags" target="_blank" rel="noopener">Release tags</a>
+      <a class="btn btn-secondary" href="https://github.com/Onyemaofficial/officelume#readme" target="_blank" rel="noopener">README</a>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="num">367</div><div class="label">automated checks, 0 failures</div></div>
+      <div class="stat"><div class="num">100%</div><div class="label">scenario accuracy &amp; escalation</div></div>
+      <div class="stat"><div class="num">84–86%</div><div class="label">statement coverage</div></div>
+      <div class="stat"><div class="num">39–65 ms</div><div class="label">warm Cloud Function latency</div></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section>
+    <h2>The problem</h2>
+    <p class="section-sub">Small, appointment-based service businesses — HVAC, plumbing, and similar trades — often have no dedicated front-office staff. The owner answers calls, replies to messages, and keeps the schedule while also doing the job itself, which leads to missed leads and inconsistent customer experience.</p>
+    <div class="card-grid">
+      <div class="card"><h3>Goal</h3><p>Automate routine, answerable questions and request capture, while keeping a human in the loop for anything the system can't confidently handle.</p></div>
+      <div class="card"><h3>Non-goal</h3><p>Replace human judgment. The system is designed to escalate rather than guess whenever it lacks approved information.</p></div>
+      <div class="card"><h3>Scope</h3><p>Single-pilot HVAC business, text-only chat, service-request capture, role-gated staff admin — voice, CRM, and multi-tenant support are explicitly out of scope.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Architecture</h2>
+    <p class="section-sub">A three-layer design — presentation, application, data — where every mutation passes through a Cloud Functions layer, and Firestore Security Rules independently re-check every staff and admin action.</p>
+    <figure>
+      <img src="assets/architecture.png" alt="OfficeLume system architecture diagram: presentation, application, and data layers">
+      <figcaption>Twelve Cloud Functions across four trust tiers, nine Firestore collections, and a dual claim+profile authorization check that fails closed.</figcaption>
+    </figure>
+    <div class="note">The AI module is deliberately read-only — it can answer or escalate, but has no authority to create a booking. An earlier design gave it direct tool-calling access to do so; that was removed during implementation in response to OWASP's "excessive agency" risk category for LLM applications.</div>
+  </section>
+
+  <section>
+    <h2>It in action</h2>
+    <p class="section-sub">The same chat widget, under the same conditions, behaves differently depending on whether it actually has an approved answer.</p>
+    <div class="shot-grid">
+      <figure>
+        <img src="assets/chat-qa-1.png" alt="Chat widget answering a supported question about service area">
+        <figcaption>A supported question, answered directly from the approved knowledge base.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/chat-qa-2.png" alt="Chat widget escalating an unsupported question about warranties">
+        <figcaption>An unsupported question — escalated to a human instead of guessed at.</figcaption>
+      </figure>
+    </div>
+    <figure style="margin-top:18px;">
+      <img src="assets/admin-dashboard.png" alt="Staff admin dashboard showing a submitted service request">
+      <figcaption>The staff-side admin dashboard: role-gated, audit-logged, showing the same request a customer just submitted.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>Measured results</h2>
+    <p class="section-sub">Evaluated at four independent testing levels — unit, Firestore rules, integration, and acceptance-style smoke checks over the real HTTPS callable protocol — plus a 66-scenario correctness and escalation evaluation.</p>
+    <div class="shot-grid">
+      <figure>
+        <img src="assets/chart-latency.png" alt="Bar chart of Cloud Function warm-average response latency">
+        <figcaption>Warm-average response latency by Cloud Function, all well under the project's 2-second performance target.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/chart-tests.png" alt="Bar chart of server-side unit tests by suite">
+        <figcaption>Server-side test coverage concentrated on validation and authorization — the two modules facing untrusted input directly.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Technology</h2>
+    <div class="chip-row">
+      <span class="chip">React 19</span><span class="chip">TypeScript</span><span class="chip">Vite</span>
+      <span class="chip">Firebase Auth</span><span class="chip">Cloud Firestore</span><span class="chip">Cloud Functions v2</span>
+      <span class="chip">Firestore Security Rules</span><span class="chip">Anthropic Claude API</span>
+      <span class="chip">Vitest</span><span class="chip">Firebase Emulator Suite</span><span class="chip">Git / GitHub Flow</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Engineering practices</h2>
+    <ul class="req-list">
+      <li>Formal functional &amp; non-functional requirements (FR-01–FR-15, NFR-01–NFR-08), each traced to its implementing module and verifying test suite</li>
+      <li>Two-branch Git Flow with four annotated milestone tags (v0.1.0 → v1.0.0)</li>
+      <li>Deny-by-default Firestore rules requiring both a Firebase Auth custom claim and a live, matching Firestore profile</li>
+      <li>Server-side-only AI calls — the client never holds or sends the Anthropic API key, which lives in Firebase Secret Manager</li>
+      <li>Documented, honest limitations: no real Firebase deployment yet, live-Claude latency unmeasured, no App Check</li>
+    </ul>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><strong>Emeka Joseph Onyema</strong> — MSIT candidate, University of the People. Capstone project (MSIT 5910), 2026.</p>
+    <p><a href="https://github.com/Onyemaofficial/officelume" target="_blank" rel="noopener">github.com/Onyemaofficial/officelume</a></p>
+  </div>
+</footer>
+
+</body>
+</html>
