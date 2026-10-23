@@ -84,7 +84,7 @@
 
   <section>
     <h2>The problem</h2>
-    <p class="section-sub">Small, appointment-based service businesses HVAC, plumbing, and similar trades — often have no dedicated front-office staff. The owner answers calls, replies to messages, and keeps the schedule while also doing the job itself, which leads to missed leads and inconsistent customer experience.</p>
+    <p class="section-sub">Small, appointment-based service businesses HVAC, plumbing, and similar trades often have no dedicated front-office staff. The owner answers calls, replies to messages, and keeps the schedule while also doing the job itself, which leads to missed leads and inconsistent customer experience.</p>
     <div class="card-grid">
       <div class="card"><h3>Goal</h3><p>Automate routine, answerable questions and request capture, while keeping a human in the loop for anything the system can't confidently handle.</p></div>
       <div class="card"><h3>Non-goal</h3><p>Replace human judgment. The system is designed to escalate rather than guess whenever it lacks approved information.</p></div>
@@ -94,7 +94,7 @@
 
   <section>
     <h2>Architecture</h2>
-    <p class="section-sub">A three-layer design — presentation, application, data — where every mutation passes through a Cloud Functions layer, and Firestore Security Rules independently re-check every staff and admin action.</p>
+    <p class="section-sub">A three-layer design presentation, application, data — where every mutation passes through a Cloud Functions layer, and Firestore Security Rules independently re-check every staff and admin action.</p>
     <figure>
       <img src="assets/architecture.png" alt="OfficeLume system architecture diagram: presentation, application, and data layers">
       <figcaption>Twelve Cloud Functions across four trust tiers, nine Firestore collections, and a dual claim+profile authorization check that fails closed.</figcaption>
@@ -112,7 +112,7 @@
       </figure>
       <figure>
         <img src="assets/chat-qa-2.png" alt="Chat widget escalating an unsupported question about warranties">
-        <figcaption>An unsupported question — escalated to a human instead of guessed at.</figcaption>
+        <figcaption>An unsupported question escalated to a human instead of guessed at.</figcaption>
       </figure>
     </div>
     <figure style="margin-top:18px;">
@@ -123,7 +123,7 @@
 
   <section>
     <h2>Measured results</h2>
-    <p class="section-sub">Evaluated at four independent testing levels unit, Firestore rules, integration, and acceptance-style smoke checks over the real HTTPS callable protocol — plus a 66-scenario correctness and escalation evaluation.</p>
+    <p class="section-sub">Evaluated at four independent testing levels unit, Firestore rules, integration, and acceptance-style smoke checks over the real HTTPS callable protocol plus a 66-scenario correctness and escalation evaluation.</p>
     <div class="shot-grid">
       <figure>
         <img src="assets/chart-latency.png" alt="Bar chart of Cloud Function warm-average response latency">
@@ -131,7 +131,7 @@
       </figure>
       <figure>
         <img src="assets/chart-tests.png" alt="Bar chart of server-side unit tests by suite">
-        <figcaption>Server-side test coverage concentrated on validation and authorization — the two modules facing untrusted input directly.</figcaption>
+        <figcaption>Server-side test coverage concentrated on validation and authorization of the two modules facing untrusted input directly.</figcaption>
       </figure>
     </div>
   </section>
@@ -161,7 +161,7 @@
 
 <footer>
   <div class="wrap">
-    <p><strong>Emeka Joseph Onyema</strong> — MSIT candidate, University of the People. Capstone project (MSIT 5910), 2026.</p>
+    <p><strong>Emeka Joseph Onyema</strong> an MSIT candidate, University of the People. Capstone project (MSIT 5910), 2026.</p>
     <p><a href="https://github.com/Onyemaofficial/officelume" target="_blank" rel="noopener">github.com/Onyemaofficial/officelume</a></p>
   </div>
 </footer>
