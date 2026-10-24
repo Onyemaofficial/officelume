@@ -97,7 +97,7 @@
     <h2>Architecture</h2>
     <p class="section-sub">A three-layer design presentation, application, data layer where every mutation passes through a Cloud Functions layer, and Firestore Security Rules independently re-check every staff and admin action.</p>
     <figure>
-      <img src="assets/architecture.png" alt="OfficeLume system architecture blueprint: customer and administrator actors, presentation layer, application layer with an Application Controller, AI Orchestration, Service Request/Escalation, and Authentication modules, and a data and integration layer with the knowledge base, external LLM API, database, and audit log">
+      <img src="assets/architecture.png" alt="OfficeLume system architecture blueprint: customer and administrator actors, presentation layer, application layer with an Application Controller, AI Orchestration, Service Request/Escalation, and Authentication modules, and a data and integration layer with the knowledge base, external LLM API, Cloud Firestore database, and audit log">
       <figcaption>Customer and admin requests are routed through a single Application Controller. The AI Orchestration module only ever reads the knowledge base and calls the external LLM API — every write passes through the Service-Request/Escalation module instead, with full audit logging.</figcaption>
     </figure>
     <div class="note">The AI module is deliberately read-only, it can answer or escalate, but has no authority to create a booking. An earlier design gave it direct tool-calling access to do so; that was removed during implementation in response to OWASP's "excessive agency" risk category for LLM applications.</div>
